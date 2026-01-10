@@ -18,13 +18,20 @@ async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 300
         });
 
         const response = await fetch(`${JUPITER_API}/quote?${params}`);
-        
+
         if (!response.ok) {
-            throw new Error(`Jupiter quote failed: ${response.statusText}`);
+            const errorText = await response.text();
+            throw new Error(`Jupiter quote failed (${response.status}): ${errorText}`);
         }
 
-        const quote = await response.json();
-        
+        const responseText = await response.text();
+        let quote;
+        try {
+            quote = JSON.parse(responseText);
+        } catch (e) {
+            throw new Error(`Invalid JSON from Jupiter: ${responseText.substring(0, 100)}`);
+        }
+
         if (!quote || quote.error) {
             throw new Error(`Jupiter quote error: ${quote?.error || 'Unknown error'}`);
         }
@@ -131,7 +138,7 @@ async function transferTokens(tokenMint, amount, destinationWallet) {
         const { Token, TOKEN_PROGRAM_ID } = require('@solana/spl-token');
         const connection = getConnection();
         const depositKeypair = getDepositKeypair();
-        
+
         const mintPublicKey = new PublicKey(tokenMint);
         const destinationPublicKey = new PublicKey(destinationWallet);
 
@@ -158,7 +165,7 @@ async function transferTokens(tokenMint, amount, destinationWallet) {
 
         const { Transaction } = require('@solana/web3.js');
         const transaction = new Transaction().add(transferIx);
-        
+
         const signature = await connection.sendTransaction(
             transaction,
             [depositKeypair],
