@@ -1,0 +1,55 @@
+RANDYVERSE - 
+
+--------TELEGRAM-----------
+
+RandyBuyBot: Key: 8396764348:AAGNgAIXZ6GRUHw0eRMbnQYiod0zrSHhpP0
+
+
+
+WEBSITE MEMBERSHIPS AND INFORMATION FOR LOG IN
+
+-------HELIUS--------------
+www.helius.dev 
+Randy Gmail Sign in
+API KEY FOR RANDYBUYBOT: 8c62e58a-1492-4af0-8398-b082721801bf
+RPC URL: https://mainnet.helius-rpc.com/?api-key=f2032493-3293-4509-a358-4c8edd72dc10
+Solana API: Parse Transactions: https://api-mainnet.helius-rpc.com/v0/transactions/?api-key=f2032493-3293-4509-a358-4c8edd72dc10
+Solana API: Parse Transaction History: https://api-mainnet.helius-rpc.com/v0/addresses/{address}/transactions/?api-key=f2032493-3293-4509-a358-4c8edd72dc10
+
+
+------SUPABASE -----------------
+Sign in with Github
+askrandyai@gmail.com
+2Reneg@des182*
+RandyAI Rewards Organization
+Project Name: RandyBuyBot
+Password: 2Reneg@des182*
+Project URL: https://uiuktdzragungddoxqva.supabase.co
+Publishable API Key: sb_publishable_eRJ9d9wjCNQG2eVqQQlBZA_kWQ-fRSo
+
+www.git-scm.com
+Downloaded Git for free
+
+https://www.postgresql.org/
+
+RANDYBUYBOT:
+
+askrandyai@Renegades-1-2:~/wallet-generator$ nano generate.js
+askrandyai@Renegades-1-2:~/wallet-generator$ node generate.js
+✅ Wallet created!
+Public Address: E3tPZ3cZHaKumG2dnmJs6jJ86h6UjkjSMD2okVXbF1ZH
+Private key saved to: deposit-wallet.json  [91,29,98,128,155,204,16,13,70,130,87,117,34,22,198,162,225,239,132,125,11,241,26,89,254,206,230,78,92,79,214,177,193,229,50,123,230,219,159,135,144>
+=================================
+WALLET INFORMATION
+=================================
+
+Public Address (for receiving deposits):
+E3tPZ3cZHaKumG2dnmJs6jJ86h6UjkjSMD2okVXbF1ZH
+
+Private Key (for .env file):
+2pf7vQV1FFk9zEFVfq4tcSHveXcpg8XRbDRq4R3GGsxmNciCqj3YufBpW4VsenmkfPZvSC1LXjULScLRxndshvkF
+
+
+SOLFLARE WALLET ADDRESS: 5h38phkqwAdHY4fbdzomMjYyJmdXvCoYMhMx93kajrub "RANDYBUYBOT"
+
+
