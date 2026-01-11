@@ -141,37 +141,71 @@ async function buyTokens(tokenMint, amountSOL, slippageBps = 300) {
 
 async function transferTokens(tokenMint, amount, destinationWallet) {
     try {
-        const { Token, TOKEN_PROGRAM_ID } = require('@solana/spl-token');
+        // Modern SPL Token imports
+        const {
+            getAssociatedTokenAddress,
+            createTransferInstruction,
+            createAssociatedTokenAccountInstruction,
+            getAccount,
+            TOKEN_PROGRAM_ID,
+            ASSOCIATED_TOKEN_PROGRAM_ID
+        } = require('@solana/spl-token');
+
         const connection = getConnection();
         const depositKeypair = getDepositKeypair();
 
         const mintPublicKey = new PublicKey(tokenMint);
         const destinationPublicKey = new PublicKey(destinationWallet);
 
-        const fromTokenAccount = await Token.getAssociatedTokenAddress(
-            TOKEN_PROGRAM_ID,
+        // 1. Get Source Account (Bot's Wallet)
+        const fromTokenAccount = await getAssociatedTokenAddress(
             mintPublicKey,
-            depositKeypair.publicKey
+            depositKeypair.publicKey,
+            false,
+            TOKEN_PROGRAM_ID,
+            ASSOCIATED_TOKEN_PROGRAM_ID
         );
 
-        const toTokenAccount = await Token.getAssociatedTokenAddress(
-            TOKEN_PROGRAM_ID,
+        // 2. Get Destination Account (User's Wallet)
+        const toTokenAccount = await getAssociatedTokenAddress(
             mintPublicKey,
-            destinationPublicKey
+            destinationPublicKey,
+            false,
+            TOKEN_PROGRAM_ID,
+            ASSOCIATED_TOKEN_PROGRAM_ID
         );
 
-        const transferIx = Token.createTransferInstruction(
-            TOKEN_PROGRAM_ID,
+        const transaction = new (require('@solana/web3.js').Transaction)();
+
+        // 3. Check if Destination Account exists
+        try {
+            await getAccount(connection, toTokenAccount);
+        } catch (error) {
+            // If account not found, create it
+            logger.info('Destination ATA missing. Creating it...');
+            transaction.add(
+                createAssociatedTokenAccountInstruction(
+                    depositKeypair.publicKey, // Payer
+                    toTokenAccount, // ATA
+                    destinationPublicKey, // Owner
+                    mintPublicKey // Mint
+                )
+            );
+        }
+
+        // 4. Create Transfer Instruction
+        const transferIx = createTransferInstruction(
             fromTokenAccount,
             toTokenAccount,
             depositKeypair.publicKey,
+            amount,
             [],
-            amount
+            TOKEN_PROGRAM_ID
         );
 
-        const { Transaction } = require('@solana/web3.js');
-        const transaction = new Transaction().add(transferIx);
+        transaction.add(transferIx);
 
+        // 5. Send
         const signature = await connection.sendTransaction(
             transaction,
             [depositKeypair],
@@ -186,6 +220,13 @@ async function transferTokens(tokenMint, amount, destinationWallet) {
 
     } catch (error) {
         logger.error('Error transferring tokens:', error);
+        // Don't throw fatal error to stop campaign, just log it. 
+        // We technically bought the tokens, they just didn't move.
+        // Return null or throw? Throwing causes the bot to mark "Buy Failed".
+        // Let's throw so it retries? 
+        // No, if we retry, we buy AGAIN.
+        // We really should separate Buy from Transfer.
+        // For now, throw so user knows.
         throw error;
     }
 }
