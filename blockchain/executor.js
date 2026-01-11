@@ -15,6 +15,30 @@ async function executeBuy(campaign) {
         const connection = getConnection();
         const depositKeypair = getDepositKeypair();
 
+        // --- NEW: STUCK TOKEN RECOVERY ---
+        // Check if we already have the tokens (from a previous failed transfer)
+        // to avoid double-buying and draining SOL on fees.
+        try {
+            const { getAssociatedTokenAddress, getAccount, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
+            const ata = await getAssociatedTokenAddress(new PublicKey(campaign.token_address), depositKeypair.publicKey);
+            const account = await getAccount(connection, ata);
+
+            if (account && account.amount > 0n) {
+                logger.info(`📦 Found ${account.amount.toString()} stuck tokens from previous attempt. Attempting transfer only...`);
+                const transferSignature = await transferTokens(
+                    campaign.token_address,
+                    account.amount.toString(),
+                    campaign.destination_wallet
+                );
+
+                await updateDatabaseAfterSuccess(campaign, 'RECOVERED_SIG', transferSignature, campaign.per_buy_usd, 0, account.amount, 0);
+                return { success: true, recovered: true };
+            }
+        } catch (e) {
+            // Account likely doesn't exist, which is fine, proceed to normal buy.
+            logger.debug('No stuck tokens found, proceeding with fresh buy.');
+        }
+
         const feeWallet = await db.getAdminSetting('fee_wallet');
         if (!feeWallet) {
             throw new Error('Fee wallet not configured in admin settings');
@@ -22,6 +46,7 @@ async function executeBuy(campaign) {
 
         const feeSOL = 0.001;
 
+        // --- FEE COLLECTION ---
         const feeTransferIx = SystemProgram.transfer({
             fromPubkey: depositKeypair.publicKey,
             toPubkey: new PublicKey(feeWallet),
@@ -41,12 +66,12 @@ async function executeBuy(campaign) {
         const solPrice = await price.getSolPrice();
         const buyAmountSOL = campaign.per_buy_usd / solPrice;
 
-        logger.info(`Buying $${campaign.per_buy_usd} worth (${buyAmountSOL} SOL) of ${campaign.token_address}`);
+        logger.info(`Buying $${campaign.per_buy_usd} worth (${buyAmountSOL.toFixed(6)} SOL) of ${campaign.token_address}`);
 
         const swapResult = await buyTokens(
             campaign.token_address,
             buyAmountSOL
-            // Removed hardcoded 300 to use default (1000/10%) from jupiter.js
+            // Uses 10% default from jupiter.js
         );
 
         const transferSignature = await transferTokens(
@@ -55,16 +80,15 @@ async function executeBuy(campaign) {
             campaign.destination_wallet
         );
 
-        await db.createBuy({
-            campaignId: campaign.id,
-            swapSignature: swapResult.signature,
-            transferSignature: transferSignature,
-            amountUsd: campaign.per_buy_usd,
-            amountSol: buyAmountSOL,
-            tokensReceived: swapResult.outputAmount,
-            feePaidSol: feeSOL,
-            status: 'success'
-        });
+        await updateDatabaseAfterSuccess(
+            campaign,
+            swapResult.signature,
+            transferSignature,
+            campaign.per_buy_usd,
+            buyAmountSOL,
+            swapResult.outputAmount,
+            feeSOL
+        );
 
         const newBuysCompleted = campaign.buys_completed + 1;
         const isComplete = newBuysCompleted >= campaign.number_of_buys;
