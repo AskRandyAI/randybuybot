@@ -1,35 +1,38 @@
 const { FEE_PER_BUY_USD } = require('../config/constants');
 
 function welcomeMessage() {
-    return `🤖 Welcome to RandyBuyBot!
+    return `🚀 *Welcome to RandyBuyBot v2.0*
+━━━━━━━━━━━━━━━━━━━━━━━
 
-I help you DCA into low-cap Solana tokens automatically.
+The most secure & efficient way to DCA into Solana gems. Your private keys are never exposed, and tokens go straight to your wallet.
 
-Features:
-✅ Minimum $1 buys every 5+ minutes
-✅ Only $${FEE_PER_BUY_USD} fee per buy
-✅ Tokens sent directly to your wallet
-✅ Cancel anytime with refund
+✨ *Features:*
+• *Capital Safety:* Dedicated deposit wallets
+• *Minimal Fees:* Only \`$${FEE_PER_BUY_USD}\` per buy
+• *Direct Delivery:* Tokens sent to your wallet
+• *Autonomy:* Fully automatic execution
 
-Commands:
-/newcampaign - Start a new buy campaign
-/status - Check campaign progress
-/help - Show help
-
-Ready to start? Type /newcampaign`;
+👇 *Choose an option below to begin:*`;
 }
 
 function helpMessage() {
-    return `📚 RandyBuyBot Help
+    return `📚 *COMMAND CENTER*
+━━━━━━━━━━━━━━━━━━━━━━━
 
-Commands:
-/newcampaign - Start new campaign
-/status - Check progress
-/cancel - Cancel campaign
-/history - View buy history
-/help - Show this message
+🚀 /newcampaign \- Start a new DCA run
+📊 /status \- Monitor live progress
+📜 /history \- View past trade performance
+❌ /cancel \- Stop campaign & refund
 
-Fees: $${FEE_PER_BUY_USD} per buy`;
+📈 *Fees:* \`$${FEE_PER_BUY_USD}\` per buy 
+⛽ *Gas Buffer:* \`$4.00\` (Reserved for network safety)`;
+}
+
+function progressBar(current, total) {
+    const size = 10;
+    const progress = Math.min(Math.max(Math.round((current / total) * size), 0), size);
+    const empty = size - progress;
+    return '`[' + '■'.repeat(progress) + '□'.repeat(empty) + ']`';
 }
 
 function campaignSummary(campaignData, calc, interval) {
@@ -37,29 +40,30 @@ function campaignSummary(campaignData, calc, interval) {
     const hours = Math.floor(duration);
     const minutes = Math.round((duration - hours) * 60);
 
-    return `📊 CAMPAIGN SUMMARY
+    return `📝 *CAMPAIGN INVOICE*
 ━━━━━━━━━━━━━━━━━━━━━━━
 
-Token: ${campaignData.tokenAddress.substring(0, 8)}...
-Destination: ${campaignData.destinationWallet.substring(0, 8)}...
+🔹 *TOKEN:* \`${campaignData.tokenAddress.substring(0, 8)}...\`
+🔹 *DEST:* \`${campaignData.destinationWallet.substring(0, 8)}...\`
 
-Financials:
-Total deposit: $${calc.totalDeposit.toFixed(2)}
-Bot fees: $${calc.totalFees.toFixed(2)} (${campaignData.numberOfBuys} × $${FEE_PER_BUY_USD})
-Gas reserve: $${calc.gasReserve.toFixed(2)} (Safe buffer)
-Available for buys: $${calc.availableForBuys.toFixed(2)}
+💰 *FINANCIALS*
+• Total Deposit: \`$${calc.totalDeposit.toFixed(2)}\`
+• Bot Fees: \`$${calc.totalFees.toFixed(2)}\`
+• Gas Reserve: \`$${calc.gasReserve.toFixed(2)}\`
+• Net Capital: \`$${calc.availableForBuys.toFixed(2)}\`
 
-Schedule:
-Per buy: $${calc.perBuyAmount.toFixed(2)}
-Interval: Every ${interval} minutes
-Total buys: ${campaignData.numberOfBuys}
-Duration: ~${hours}h ${minutes}m
+⏰ *SCHEDULE*
+• Per Buy: \`$${calc.perBuyAmount.toFixed(2)}\`
+• Interval: \`Every ${interval}m\`
+• Total Buys: \`${campaignData.numberOfBuys}\`
+• Duration: \`~${hours}h ${minutes}m\`
 
-First buy: Immediately after deposit`;
+_Confirm your campaign to generate the deposit address._`;
 }
 
 module.exports = {
     welcomeMessage,
     helpMessage,
-    campaignSummary
+    campaignSummary,
+    progressBar
 };

@@ -170,15 +170,16 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
 
         userState.step = 'confirm';
 
-        await bot.sendMessage(chatId, summary);
+        await bot.sendMessage(chatId, summary, { parse_mode: 'Markdown' });
         await bot.sendMessage(
           chatId,
-          'Please confirm your campaign details:',
+          '🧐 *Please verify the details above:*',
           {
+            parse_mode: 'Markdown',
             reply_markup: {
               inline_keyboard: [
-                [{ text: '✅ Confirm & Create', callback_data: 'confirm_campaign' }],
-                [{ text: '❌ Cancel', callback_data: 'cancel_campaign' }]
+                [{ text: '🚀 Confirm & Start', callback_data: 'confirm_campaign' }],
+                [{ text: '❌ Discard', callback_data: 'cancel_campaign' }]
               ]
             }
           }
@@ -346,53 +347,63 @@ async function handleStatus(bot, msg) {
       const balanceLamports = await connection.getBalance(pubKey);
       const balanceSOL = balanceLamports / 1000000000;
 
-      // If wallet has enough funds (allowing for small fee reserve), activate it!
-      // We use a looser check here: Is Balance >= Expected?
-      // This allows pre-funding or manual funding.
-      // TESTING MODE: Allow 50% of expected (bypass strict check)
       if (balanceSOL >= parseFloat(campaign.expected_deposit_sol) * 0.5) {
         await db.updateCampaignStatus(campaign.id, 'active');
         await db.updateCampaignDeposit(campaign.id, balanceSOL, 'PRE_FUNDED_OR_MANUAL');
 
         await bot.sendMessage(
           chatId,
-          '✅ **Deposit Verified via Wallet Balance!**\n' +
-          `Found: ${balanceSOL.toFixed(4)} SOL\n` +
-          'Campaign is now ACTIVE. 🚀'
+          '✅ *DEPOSIT VERIFIED!*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n' +
+          `💰 Found: \`${balanceSOL.toFixed(4)} SOL\`\n` +
+          '🚀 *Campaign is now ACTIVE!*',
+          { parse_mode: 'Markdown' }
         );
 
-        // Reload campaign to show active status
         const updated = await db.getActiveCampaign(userId);
-        if (updated) campaign.status = 'active'; // Update local var for display below
+        if (updated) Object.assign(campaign, updated);
       } else {
+        const depositAddress = process.env.DEPOSIT_WALLET_ADDRESS;
         await bot.sendMessage(
           chatId,
-          `⏳ **Waiting for Deposit**\n` +
-          `Wallet Balance: ${balanceSOL.toFixed(4)} SOL\n` +
-          `Needed: ${campaign.expected_deposit_sol} SOL\n\n` +
-          `Send funds to: \`${campaign.destination_wallet}\` (Bot Wallet)`
+          `⏳ *WAITING FOR DEPOSIT*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `💰 *Balance:* \`${balanceSOL.toFixed(4)} SOL\`\n` +
+          `🎯 *Target:* \`${campaign.expected_deposit_sol} SOL\`\n\n` +
+          `📍 *Send to (tap to copy):*\n\`${depositAddress}\``,
+          { parse_mode: 'Markdown' }
         );
-        // Return here, or show the status below? Let's show status below as well.
       }
     }
 
+    const progress = messages.progressBar(campaign.buys_completed, campaign.number_of_buys);
+
     await bot.sendMessage(
       chatId,
-      '📊 Current Campaign\n\n' +
-      `Status: ${campaign.status}\n` +
-      `Token: ${campaign.token_address.substring(0, 8)}...\n` +
-      `Destination: ${campaign.destination_wallet.substring(0, 8)}...\n` +
-      `Total: $${campaign.total_deposit_usd}\n` +
-      `Buys: ${campaign.buys_completed}/${campaign.number_of_buys}\n` +
-      `Interval: ${campaign.interval_minutes} min\n` +
-      `Per Buy: $${campaign.per_buy_usd}\n` +
-      `Fees: $${campaign.total_fees_usd}\n` +
-      `Expected Deposit: ${campaign.expected_deposit_sol} SOL`
+      `📊 *ACTIVE CAMPAIGN* (ID: ${campaign.id})\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `📌 *STATUS:* \`${campaign.status.toUpperCase()}\`\n` +
+      `🪙 *TOKEN:* \`${campaign.token_address.substring(0, 12)}...\`\n` +
+      `🏁 *DEST:* \`${campaign.destination_wallet.substring(0, 12)}...\`\n\n` +
+      `📈 *PROGRESS:* ${campaign.buys_completed}/${campaign.number_of_buys}\n` +
+      `${progress}\n\n` +
+      `💰 *DETAILS:*\n` +
+      `• Total: \`$${campaign.total_deposit_usd}\`\n` +
+      `• Per Buy: \`$${campaign.per_buy_usd}\`\n` +
+      `• Interval: \`${campaign.interval_minutes} minutes\``,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🔄 Refresh Status', callback_data: 'status' }],
+            [{ text: '📜 Trade History', callback_data: 'history' }],
+            [{ text: '❌ Cancel Campaign', callback_data: 'cancel' }]
+          ]
+        }
+      }
     );
 
   } catch (err) {
     logger.error('Status error:', err);
-    await bot.sendMessage(chatId, '❌ Could not load status right now. Try again in a moment.');
+    await bot.sendMessage(chatId, '❌ Could not load status right now.');
   }
 }
 
@@ -403,7 +414,7 @@ async function handleCancel(bot, msg, userStates) {
   const userState = userStates.get(userId);
   if (userState && userState.isSettingUp) {
     userStates.delete(userId);
-    await bot.sendMessage(chatId, '❌ Campaign setup cancelled.');
+    await bot.sendMessage(chatId, '🛑 *Campaign creation aborted.*', { parse_mode: 'Markdown' });
     return;
   }
 
@@ -411,7 +422,7 @@ async function handleCancel(bot, msg, userStates) {
     const campaign = await db.getActiveCampaign(userId);
 
     if (!campaign) {
-      await bot.sendMessage(chatId, '❌ No active campaign to cancel');
+      await bot.sendMessage(chatId, '🔍 *No active campaign found to cancel.*', { parse_mode: 'Markdown' });
       return;
     }
 
@@ -419,9 +430,10 @@ async function handleCancel(bot, msg, userStates) {
 
     await bot.sendMessage(
       chatId,
-      '✅ Campaign cancelled!\n\n' +
-      `Campaign ID: ${campaign.id}\n` +
-      'Status: cancelled'
+      `🛑 *CAMPAIGN STOPPED*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `✅ ID: \`${campaign.id}\` has been marked as **Cancelled**.\n\n` +
+      `Any unspent SOL is safe in the campaign wallet. Use /help to see how to withdraw if needed.`,
+      { parse_mode: 'Markdown' }
     );
 
   } catch (error) {
