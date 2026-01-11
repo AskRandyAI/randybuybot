@@ -98,9 +98,18 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
         break;
 
       case 'total_deposit':
-        const deposit = parseFloat((msg.text || '').replace(/[$,]/g, ''));
+        // Strip $ and , then parse
+        const rawText = (msg.text || '').trim().replace(/[$,]/g, '');
+        const deposit = parseFloat(rawText);
+
         if (isNaN(deposit) || deposit < 5) {
-          await bot.sendMessage(chatId, '❌ Invalid amount. Minimum $5. Please try again:');
+          await bot.sendMessage(
+            chatId,
+            '❌ Invalid amount.\n\n' +
+            'Please enter a number greater than 5 (USD).\n' +
+            'Example: type `100` for $100.\n' +
+            'Try again:'
+          );
           return;
         }
 
