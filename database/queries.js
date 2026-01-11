@@ -186,9 +186,9 @@ async function updateCampaignProgress(campaignId, buysCompleted, status) {
         await pool.query(
             `UPDATE randybuybot_campaigns 
              SET buys_completed = $1,
-                 status = $2,
+                 status = $2::text,
                  updated_at = NOW(),
-                 completed_at = CASE WHEN $2 = 'completed' THEN NOW() ELSE completed_at END
+                 completed_at = CASE WHEN $2::text = 'completed' THEN NOW() ELSE completed_at END
              WHERE id = $3`,
             [buysCompleted, status, campaignId]
         );
