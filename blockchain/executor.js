@@ -118,6 +118,30 @@ async function executeBuy(campaign) {
     }
 }
 
+async function updateDatabaseAfterSuccess(campaign, swapSig, transferSig, usd, sol, tokens, fee) {
+    await db.createBuy({
+        campaignId: campaign.id,
+        swapSignature: swapSig,
+        transferSignature: transferSig,
+        amountUsd: usd,
+        amountSol: sol,
+        tokensReceived: tokens.toString(),
+        feePaidSol: fee,
+        status: 'success'
+    });
+
+    const newBuysCompleted = campaign.buys_completed + 1;
+    const isComplete = newBuysCompleted >= campaign.number_of_buys;
+
+    await db.updateCampaignProgress(
+        campaign.id,
+        newBuysCompleted,
+        isComplete ? 'completed' : 'active'
+    );
+
+    logger.info(`✅ Buy #${newBuysCompleted} successfully processed for campaign ${campaign.id}`);
+}
+
 module.exports = {
     executeBuy
 };
