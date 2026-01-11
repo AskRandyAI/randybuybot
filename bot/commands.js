@@ -281,14 +281,30 @@ async function handleConfirm(bot, msg, userStates) {
 
     await bot.sendMessage(
       chatId,
-      '✅ Campaign saved!\n\n' +
-      `Campaign ID: ${created.id}\n` +
-      `Status: ${created.status}\n\n` +
-      'Send SOL to this address to activate your campaign:\n\n' +
-      `\`${depositAddress}\`` + '\n\n' +
-      `⚠️ **IMPORTANT**: You MUST send exactly:\n` +
-      `👉 \`${created.expected_deposit_sol}\` SOL\n\n` +
-      `(This exact amount is required to identify your deposit automatically)`
+      '✅ *Campaign Created!* (ID: ' + created.id + ')\n\n' +
+      'To activate your campaign, please send the deposit to the address below.\n\n' +
+      'This amount covers:\n' +
+      '• Your trading capital\n' +
+      '• Bot service fees\n' +
+      '• Future network gas fees',
+      { parse_mode: 'Markdown' }
+    );
+
+    // Send wallet address as a separate message for easy tap-to-copy
+    await bot.sendMessage(chatId, `\`${depositAddress}\``, { parse_mode: 'Markdown' });
+
+    await bot.sendMessage(
+      chatId,
+      `⚠️ *ACTION REQUIRED*:\n` +
+      `You MUST send exactly the amount below:\n\n` +
+      `👉 \`${created.expected_deposit_sol}\` *SOL*\n\n` +
+      `_(We use this exact amount to identify your deposit automatically)_`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [[{ text: '📊 Check Status', callback_data: 'status' }]]
+        }
+      }
     );
 
     userStates.delete(userId);
