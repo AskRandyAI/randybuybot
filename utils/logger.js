@@ -14,8 +14,14 @@ function warn(message, ...args) {
     console.warn(`[WARN] ${formatTimestamp()} -`, message, ...args);
 }
 
+function debug(message, ...args) {
+    // Only show debug logs if needed, or just map to info/console.log for now
+    console.debug(`[DEBUG] ${formatTimestamp()} -`, message, ...args);
+}
+
 module.exports = {
     info,
     error,
-    warn
+    warn,
+    debug
 };
