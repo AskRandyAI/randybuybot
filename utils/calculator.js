@@ -20,11 +20,12 @@ function calculateCampaign(totalDepositUSD, numberOfBuys) {
     }
 
     return {
+        totalDeposit: totalDepositUSD,
         totalFees: totalServiceFees,
         gasReserve: GAS_RESERVE_USD,
         availableForBuys: availableForBuys > 0 ? availableForBuys : 0,
         perBuyAmount: perBuyAmount,
-        expectedDepositSOL: expectedDepositSOL
+        expectedDepositSOL: 0 // Handled in commands.js
     };
 }
 

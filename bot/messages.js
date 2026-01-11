@@ -36,7 +36,7 @@ function campaignSummary(campaignData, calc, interval) {
     const duration = (campaignData.numberOfBuys * interval) / 60;
     const hours = Math.floor(duration);
     const minutes = Math.round((duration - hours) * 60);
-    
+
     return `📊 CAMPAIGN SUMMARY
 ━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -46,6 +46,7 @@ Destination: ${campaignData.destinationWallet.substring(0, 8)}...
 Financials:
 Total deposit: $${calc.totalDeposit.toFixed(2)}
 Bot fees: $${calc.totalFees.toFixed(2)} (${campaignData.numberOfBuys} × $${FEE_PER_BUY_USD})
+Gas reserve: $${calc.gasReserve.toFixed(2)} (Safe buffer)
 Available for buys: $${calc.availableForBuys.toFixed(2)}
 
 Schedule:
