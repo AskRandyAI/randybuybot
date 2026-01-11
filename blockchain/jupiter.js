@@ -3,7 +3,10 @@ const fetch = require('node-fetch');
 const { getConnection, getDepositKeypair, lamportsToSol, solToLamports } = require('./wallet');
 const logger = require('../utils/logger');
 
-const JUPITER_API = 'https://quote-api.jup.ag/v6';
+// Trying a different endpoint that might have better DNS resolution
+const JUPITER_API = 'https://public.jupiterapi.com';
+// Backup: 'https://quote-api.jup.ag/v6'
+
 const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 
 async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 300) {
