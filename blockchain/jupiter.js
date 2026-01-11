@@ -9,8 +9,11 @@ const JUPITER_API = 'https://public.jupiterapi.com';
 
 const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 
-async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 300) {
+// Increased default slippage to 10% (1000 bps) to handle new/volatile tokens
+async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 1000) {
     try {
+        // Log the exact URL for debugging
+        const url = `${JUPITER_API}/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountLamports}&slippageBps=${slippageBps}&onlyDirectRoutes=false&asLegacyTransaction=false`;
         const params = new URLSearchParams({
             inputMint,
             outputMint,
