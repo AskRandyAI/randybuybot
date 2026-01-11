@@ -68,8 +68,35 @@ async function checkForDeposits() {
 
         lastCheckedSignature = newestSignature;
 
+        // NEW: Always check check total balance for pending campaigns (Auto-Sweep)
+        // This ensures pre-funded wallets activate automatically
+        await checkWalletBalanceForPendingCampaigns();
+
     } catch (error) {
         logger.error('Error checking for deposits:', error);
+    }
+}
+
+async function checkWalletBalanceForPendingCampaigns() {
+    try {
+        const pendingCampaigns = await db.getAwaitingDepositCampaigns();
+        if (pendingCampaigns.length === 0) return;
+
+        const connection = getConnection();
+        const depositWallet = getDepositPublicKey();
+        const balanceLamports = await connection.getBalance(depositWallet);
+        const balanceSOL = lamportsToSol(balanceLamports);
+
+        for (const campaign of pendingCampaigns) {
+            const expected = parseFloat(campaign.expected_deposit_sol);
+            // Allow 50% threshold for testing/flexibility (same as /status command)
+            if (balanceSOL >= expected * 0.5) {
+                logger.info(`💰 Auto-Sweep: Wallet balance (${balanceSOL}) covers campaign ${campaign.id} (${expected}). Activating!`);
+                await activateCampaign(campaign, balanceSOL, 'AUTO_SWEEP_BALANCE');
+            }
+        }
+    } catch (error) {
+        logger.error('Error in auto-sweep:', error);
     }
 }
 
