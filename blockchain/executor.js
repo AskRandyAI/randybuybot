@@ -45,8 +45,8 @@ async function executeBuy(campaign) {
 
         const swapResult = await buyTokens(
             campaign.token_address,
-            buyAmountSOL,
-            300
+            buyAmountSOL
+            // Removed hardcoded 300 to use default (1000/10%) from jupiter.js
         );
 
         const transferSignature = await transferTokens(
