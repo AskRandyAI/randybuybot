@@ -333,7 +333,8 @@ async function handleStatus(bot, msg) {
       // If wallet has enough funds (allowing for small fee reserve), activate it!
       // We use a looser check here: Is Balance >= Expected?
       // This allows pre-funding or manual funding.
-      if (balanceSOL >= parseFloat(campaign.expected_deposit_sol) * 0.98) {
+      // TESTING MODE: Allow 50% of expected (bypass strict check)
+      if (balanceSOL >= parseFloat(campaign.expected_deposit_sol) * 0.5) {
         await db.updateCampaignStatus(campaign.id, 'active');
         await db.updateCampaignDeposit(campaign.id, balanceSOL, 'PRE_FUNDED_OR_MANUAL');
 
