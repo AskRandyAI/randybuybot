@@ -322,6 +322,43 @@ async function handleStatus(bot, msg) {
       return;
     }
 
+    // Check if campaign is waiting for deposit
+    if (campaign.status === 'awaiting_deposit') {
+      const { getConnection, getDepositPublicKey } = require('../blockchain/wallet');
+      const connection = getConnection();
+      const pubKey = getDepositPublicKey();
+      const balanceLamports = await connection.getBalance(pubKey);
+      const balanceSOL = balanceLamports / 1000000000;
+
+      // If wallet has enough funds (allowing for small fee reserve), activate it!
+      // We use a looser check here: Is Balance >= Expected?
+      // This allows pre-funding or manual funding.
+      if (balanceSOL >= parseFloat(campaign.expected_deposit_sol) * 0.98) {
+        await db.updateCampaignStatus(campaign.id, 'active');
+        await db.updateCampaignDeposit(campaign.id, balanceSOL, 'PRE_FUNDED_OR_MANUAL');
+
+        await bot.sendMessage(
+          chatId,
+          '✅ **Deposit Verified via Wallet Balance!**\n' +
+          `Found: ${balanceSOL.toFixed(4)} SOL\n` +
+          'Campaign is now ACTIVE. 🚀'
+        );
+
+        // Reload campaign to show active status
+        const updated = await db.getActiveCampaign(userId);
+        if (updated) campaign.status = 'active'; // Update local var for display below
+      } else {
+        await bot.sendMessage(
+          chatId,
+          `⏳ **Waiting for Deposit**\n` +
+          `Wallet Balance: ${balanceSOL.toFixed(4)} SOL\n` +
+          `Needed: ${campaign.expected_deposit_sol} SOL\n\n` +
+          `Send funds to: \`${campaign.destination_wallet}\` (Bot Wallet)`
+        );
+        // Return here, or show the status below? Let's show status below as well.
+      }
+    }
+
     await bot.sendMessage(
       chatId,
       '📊 Current Campaign\n\n' +
