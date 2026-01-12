@@ -1,7 +1,8 @@
 const fetch = require('node-fetch');
 const logger = require('./logger');
 
-const JUPITER_PRICE_API = 'https://price.jup.ag/v1/price?id=So11111111111111111111111111111111111111112';
+// Using the V2 Price API which is more resilient
+const JUPITER_PRICE_API = 'https://api.jup.ag/price/v2/full?ids=So11111111111111111111111111111111111111112';
 
 async function getSolPrice() {
     try {

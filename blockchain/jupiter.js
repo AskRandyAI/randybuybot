@@ -24,9 +24,8 @@ async function getQuote(inputMint, outputMint, amountLamports) {
             amount: amountLamports.toString(),
             autoSlippage: 'true',
             maxAutoSlippageBps: '2000',
-            onlyDirectRoutes: 'false', // Non-direct is needed for some T2022 tokens
-            asLegacyTransaction: 'false',
-            userPublicKey: wallet.toString()
+            onlyDirectRoutes: 'false'
+            // REMOVED userPublicKey to force Jupiter to include ATA creation instructions in the swap tx
         });
         // Removed duplicate log line as per instruction
         // logger.info(`[DEB] Quote Params: ${params.toString()}`); // This line was removed
@@ -85,9 +84,8 @@ async function executeSwap(quote) {
             wrapAndUnwrapSol: true,
             dynamicComputeUnitLimit: true,
             useSharedAccounts: false, // CRITICAL: Fixes 0x177e for T2022
-            prioritizationFeeLamports: 'auto'
-            // NOT passing destinationTokenAccount allows Jupiter to derive it correctly
-            // while respecting Token-2022 extensions.
+            prioritizationFeeLamports: 'auto',
+            destinationTokenAccount: destinationTokenAccount.toString() // Explicitly pass the T2022-aware ATA
         };
 
         let swapResponse = await fetch(`${JUPITER_API}/swap`, {
