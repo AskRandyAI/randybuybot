@@ -4,8 +4,9 @@ const { getConnection, getDepositKeypair, lamportsToSol, solToLamports } = requi
 const logger = require('../utils/logger');
 
 // Using the official V6 API for most up-to-date Token-2022 routing
-const JUPITER_API = 'https://quote-api.jup.ag/v6';
-const JUPITER_API_FALLBACK = 'https://public.jupiterapi.com';
+// Using public.jupiterapi.com for no-auth V6 access
+const JUPITER_API = 'https://public.jupiterapi.com';
+const JUPITER_API_V6 = 'https://quote-api.jup.ag/v6'; // Keep V6 one as backup for quotes
 
 const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 
@@ -35,8 +36,8 @@ async function getQuote(inputMint, outputMint, amountLamports) {
         });
 
         if (!response.ok) {
-            logger.warn(`Primary Jup API failed (${response.status}). Trying fallback...`);
-            response = await fetch(`${JUPITER_API_FALLBACK}/quote?${params}`, {
+            logger.warn(`Primary Jup API failed (${response.status}). Trying V6 backup...`);
+            response = await fetch(`${JUPITER_API_V6}/quote?${params}`, {
                 headers: { 'User-Agent': 'RandyBuyBot/1.0' }
             });
         }
@@ -88,7 +89,7 @@ async function executeSwap(quote, userPublicKey) {
             destinationTokenAccount: destinationTokenAccount.toString()
         };
 
-        const swapResponse = await fetch(`${JUPITER_API}/swap`, {
+        let swapResponse = await fetch(`${JUPITER_API}/swap`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -96,6 +97,18 @@ async function executeSwap(quote, userPublicKey) {
             },
             body: JSON.stringify(swapBody)
         });
+
+        if (!swapResponse.ok && swapResponse.status === 401) {
+            logger.warn(`Unauthorized on public API. Trying V6 backup...`);
+            swapResponse = await fetch(`${JUPITER_API_V6}/swap`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'RandyBuyBot/1.0'
+                },
+                body: JSON.stringify(swapBody)
+            });
+        }
 
         if (!swapResponse.ok) {
             const errorText = await swapResponse.text();
