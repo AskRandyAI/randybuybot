@@ -9,6 +9,39 @@ function initializeNotifications(bot) {
 
 const messages = require('../bot/messages');
 
+/**
+ * Parses technical Solana/Jupiter errors into user-friendly messages
+ */
+function cleanErrorMessage(error) {
+    const errorStr = String(error);
+
+    if (errorStr.includes('0x177e')) {
+        return 'Token program mismatch (IncorrectTokenProgramID). We are adjusting the campaign settings to fix this!';
+    }
+    if (errorStr.includes('ENOTFOUND') || errorStr.includes('fetch failed')) {
+        return 'Temporary network issue reaching Solana/Jupiter. No funds were spent.';
+    }
+    if (errorStr.includes('Simulation failed')) {
+        return 'Transaction failed during simulation. This usually means the price moved too fast or liquidity is low.';
+    }
+    if (errorStr.includes('Slippage tolerance exceeded') || errorStr.includes('Slippage out of bounds')) {
+        return 'Slippage was too high for this trade. Auto-slippage is trying to adjust!';
+    }
+    if (errorStr.includes('insufficient lamports') || errorStr.includes('insufficient funds')) {
+        return 'Insufficient SOL for gas fees in the deposit wallet.';
+    }
+    if (errorStr.includes('TOKEN_NOT_TRADABLE')) {
+        return 'This token is not yet tradable on Raydium/Jupiter. Waiting for more liquidity...';
+    }
+
+    // Default: Return a shortened version of the error message if it's too long
+    if (errorStr.length > 100) {
+        return errorStr.substring(0, 100) + '... (Technical error logged on server)';
+    }
+
+    return errorStr;
+}
+
 async function sendNotification(telegramId, message, options = {}) {
     if (!botInstance) {
         logger.error('Bot instance not initialized for notifications');
@@ -60,10 +93,11 @@ async function notifyBuyCompleted(campaign, buyResult) {
 }
 
 async function notifyBuyFailed(campaign, buyNumber, error) {
+    const userFriendlyError = cleanErrorMessage(error);
     const message =
         `⚠️ *BUY #${buyNumber} FAILED*\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `❌ *Error:* \`${error}\`\n\n` +
+        `❌ *Error:* \`${userFriendlyError}\`\n\n` +
         `🔄 *Action:* Retrying in \`5 minutes\`.\n` +
         `🛡️ *Safety:* Your unspent funds are secure.`;
 
