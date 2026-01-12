@@ -2,6 +2,7 @@ const fetch = require('node-fetch');
 const logger = require('./logger');
 
 const JUPITER_PRICE_API = 'https://public.jupiterapi.com/price/v2?ids=So11111111111111111111111111111111111111112';
+const JUPITER_PRICE_API = 'https://price.jup.ag/v1/price?id=So11111111111111111111111111111111111111112';
 
 async function getSolPrice() {
     try {

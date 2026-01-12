@@ -3,9 +3,9 @@ const fetch = require('node-fetch');
 const { getConnection, getDepositKeypair, lamportsToSol, solToLamports } = require('./wallet');
 const logger = require('../utils/logger');
 
-// Trying a different endpoint that might have better DNS resolution
-// Reverting to public.jupiterapi.com for DNS stability on Digital Ocean
-const JUPITER_API = 'https://public.jupiterapi.com';
+// Using the official V6 API for most up-to-date Token-2022 routing
+const JUPITER_API = 'https://api.jup.ag/v6';
+const JUPITER_API_FALLBACK = 'https://public.jupiterapi.com';
 
 const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 
@@ -23,27 +23,26 @@ async function getQuote(inputMint, outputMint, amountLamports) {
             amount: amountLamports.toString(),
             autoSlippage: 'true',
             maxAutoSlippageBps: '2000',
-            onlyDirectRoutes: 'true',
-            asLegacyTransaction: 'false', // Versioned transactions are better for T2022
+            onlyDirectRoutes: 'false', // Non-direct is needed for some T2022 tokens
+            asLegacyTransaction: 'false',
             userPublicKey: wallet.toString()
         });
         logger.info(`[DEB] Quote Params: ${params.toString()}`);
-        logger.info(`[DEB] Quote Params: ${params.toString()}`);
 
-        const response = await fetch(`${JUPITER_API}/quote?${params}`);
+        let response = await fetch(`${JUPITER_API}/quote?${params}`, {
+            headers: { 'User-Agent': 'RandyBuyBot/1.0' }
+        });
+
+        if (!response.ok) {
+            logger.warn(`Primary Jup API failed (${response.status}). Trying fallback...`);
+            response = await fetch(`${JUPITER_API_FALLBACK}/quote?${params}`, {
+                headers: { 'User-Agent': 'RandyBuyBot/1.0' }
+            });
+        }
 
         if (!response.ok) {
             const errorText = await response.text();
-            let errorMessage = `Jupiter quote failed (${response.status})`;
-            try {
-                const errJson = JSON.parse(errorText);
-                if (errJson.errorCode === 'TOKEN_NOT_TRADABLE') {
-                    errorMessage = "This token is not yet tradable on Raydium/Jupiter. Try again in a minute!";
-                } else if (errJson.error) {
-                    errorMessage = errJson.error;
-                }
-            } catch (e) { }
-            throw new Error(errorMessage);
+            throw new Error(`Jupiter quote failed: ${errorText}`);
         }
 
         const quote = await response.json();
@@ -84,62 +83,70 @@ async function executeSwap(quote, userPublicKey) {
                 'Content-Type': 'application/json',
                 'User-Agent': 'RandyBuyBot/1.0'
             },
-            body: JSON.stringify({
+            const swapBody = {
                 quoteResponse: quote,
                 userPublicKey: depositKeypair.publicKey.toString(),
                 wrapAndUnwrapSol: true,
                 dynamicComputeUnitLimit: true,
-                useSharedAccounts: false,
+                useSharedAccounts: false, // CRITICAL: Fixes 0x177e for T2022
                 prioritizationFeeLamports: 'auto',
                 destinationTokenAccount: destinationTokenAccount.toString()
-            })
-        });
+            };
 
-        if (!swapResponse.ok) {
-            const errorText = await swapResponse.text();
-            throw new Error(`Jupiter swap error (${swapResponse.status}): ${errorText}`);
-        }
+            const swapResponse = await fetch(`${JUPITER_API}/swap`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'RandyBuyBot/1.0'
+                },
+                body: JSON.stringify(swapBody)
+            });
+
+            if(!swapResponse.ok) {
+                const errorText = await swapResponse.text();
+        throw new Error(`Jupiter swap error: ${errorText}`);
+    }
 
         const swapData = await swapResponse.json();
-        const { swapTransaction } = swapData;
+    const { swapTransaction } = swapData;
 
-        if (!swapTransaction) {
-            throw new Error(`No swap transaction: ${JSON.stringify(swapData)}`);
-        }
-
-        logger.info(`[DEB] Received swap transaction. Signing...`);
-        const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
-        const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
-
-        transaction.sign([depositKeypair]);
-
-        logger.info(`[DEB] Sending transaction...`);
-        const signature = await connection.sendTransaction(transaction, {
-            skipPreflight: false,
-            maxRetries: 3
-        });
-
-        logger.info(`Swap transaction sent: ${signature}`);
-
-        const confirmation = await connection.confirmTransaction(signature, 'confirmed');
-
-        if (confirmation.value.err) {
-            throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
-        }
-
-        logger.info(`Swap transaction confirmed: ${signature}`);
-
-        return {
-            signature,
-            inputAmount: lamportsToSol(quote.inAmount),
-            outputAmount: Number(quote.outAmount),
-            outputMint: quote.outputMint
-        };
-
-    } catch (error) {
-        logger.error('Error executing swap:', error);
-        throw error;
+    if (!swapTransaction) {
+        throw new Error(`No swap transaction: ${JSON.stringify(swapData)}`);
     }
+
+    logger.info(`[DEB] Received swap transaction. Signing...`);
+    const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
+    const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+
+    transaction.sign([depositKeypair]);
+
+    logger.info(`[DEB] Sending transaction...`);
+    const signature = await connection.sendTransaction(transaction, {
+        skipPreflight: false,
+        maxRetries: 3
+    });
+
+    logger.info(`Swap transaction sent: ${signature}`);
+
+    const confirmation = await connection.confirmTransaction(signature, 'confirmed');
+
+    if (confirmation.value.err) {
+        throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+    }
+
+    logger.info(`Swap transaction confirmed: ${signature}`);
+
+    return {
+        signature,
+        inputAmount: lamportsToSol(quote.inAmount),
+        outputAmount: Number(quote.outAmount),
+        outputMint: quote.outputMint
+    };
+
+} catch (error) {
+    logger.error('Error executing swap:', error);
+    throw error;
+}
 }
 
 async function buyTokens(tokenMint, amountSOL, slippageBps = 300) {
