@@ -17,14 +17,23 @@ async function executeBuy(campaign) {
 
         // --- NEW: STUCK TOKEN RECOVERY ---
         // Check if we already have the tokens (from a previous failed transfer)
-        // to avoid double-buying and draining SOL on fees.
         try {
-            const { getAssociatedTokenAddress, getAccount, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
-            const ata = await getAssociatedTokenAddress(new PublicKey(campaign.token_address), depositKeypair.publicKey);
-            const account = await getAccount(connection, ata);
+            const { getAssociatedTokenAddress, getAccount, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
+            const { getTokenProgramId } = require('./jupiter');
+
+            const programId = await getTokenProgramId(campaign.token_address);
+            const ata = await getAssociatedTokenAddress(
+                new PublicKey(campaign.token_address),
+                depositKeypair.publicKey,
+                false,
+                programId,
+                ASSOCIATED_TOKEN_PROGRAM_ID
+            );
+
+            const account = await getAccount(connection, ata, 'confirmed', programId);
 
             if (account && account.amount > 0n) {
-                logger.info(`📦 Found ${account.amount.toString()} stuck tokens from previous attempt. Attempting transfer only...`);
+                logger.info(`📦 Found ${account.amount.toString()} stuck tokens (${programId.toString()}). Attempting transfer...`);
                 const transferSignature = await transferTokens(
                     campaign.token_address,
                     account.amount.toString(),
@@ -36,7 +45,7 @@ async function executeBuy(campaign) {
             }
         } catch (e) {
             // Account likely doesn't exist, which is fine, proceed to normal buy.
-            logger.debug('No stuck tokens found, proceeding with fresh buy.');
+            logger.debug('No stuck tokens found or account missing.');
         }
 
         const solPrice = await price.getSolPrice();

@@ -140,15 +140,30 @@ async function buyTokens(tokenMint, amountSOL, slippageBps = 300) {
     }
 }
 
+async function getTokenProgramId(mintAddress) {
+    try {
+        const connection = getConnection();
+        const info = await connection.getAccountInfo(new PublicKey(mintAddress));
+        if (info && info.owner) {
+            return info.owner;
+        }
+        // Fallback to standard Token Program if not found (likely won't happen if mint is valid)
+        return new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+    } catch (error) {
+        logger.error(`Error detecting program ID for ${mintAddress}:`, error);
+        return new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+    }
+}
+
 async function transferTokens(tokenMint, amount, destinationWallet) {
     try {
-        // Modern SPL Token imports
         const {
             getAssociatedTokenAddress,
             createTransferInstruction,
             createAssociatedTokenAccountInstruction,
             getAccount,
             TOKEN_PROGRAM_ID,
+            TOKEN_2022_PROGRAM_ID,
             ASSOCIATED_TOKEN_PROGRAM_ID
         } = require('@solana/spl-token');
 
@@ -158,12 +173,16 @@ async function transferTokens(tokenMint, amount, destinationWallet) {
         const mintPublicKey = new PublicKey(tokenMint);
         const destinationPublicKey = new PublicKey(destinationWallet);
 
+        // --- NEW: Detect if this is Token-2022 or Standard ---
+        const programId = await getTokenProgramId(tokenMint);
+        logger.info(`Token Program Detected: ${programId.toString()}`);
+
         // 1. Get Source Account (Bot's Wallet)
         const fromTokenAccount = await getAssociatedTokenAddress(
             mintPublicKey,
             depositKeypair.publicKey,
             false,
-            TOKEN_PROGRAM_ID,
+            programId,
             ASSOCIATED_TOKEN_PROGRAM_ID
         );
 
@@ -172,7 +191,7 @@ async function transferTokens(tokenMint, amount, destinationWallet) {
             mintPublicKey,
             destinationPublicKey,
             false,
-            TOKEN_PROGRAM_ID,
+            programId,
             ASSOCIATED_TOKEN_PROGRAM_ID
         );
 
@@ -180,16 +199,17 @@ async function transferTokens(tokenMint, amount, destinationWallet) {
 
         // 3. Check if Destination Account exists
         try {
-            await getAccount(connection, toTokenAccount);
+            await getAccount(connection, toTokenAccount, 'confirmed', programId);
         } catch (error) {
             // If account not found, create it
-            logger.info('Destination ATA missing. Creating it...');
+            logger.info(`Destination ATA missing for ${tokenMint}. Creating it...`);
             transaction.add(
                 createAssociatedTokenAccountInstruction(
                     depositKeypair.publicKey, // Payer
                     toTokenAccount, // ATA
                     destinationPublicKey, // Owner
-                    mintPublicKey // Mint
+                    mintPublicKey, // Mint
+                    programId // Dynamic Program ID
                 )
             );
         }
@@ -201,7 +221,7 @@ async function transferTokens(tokenMint, amount, destinationWallet) {
             depositKeypair.publicKey,
             amount,
             [],
-            TOKEN_PROGRAM_ID
+            programId
         );
 
         transaction.add(transferIx);
@@ -221,13 +241,6 @@ async function transferTokens(tokenMint, amount, destinationWallet) {
 
     } catch (error) {
         logger.error('Error transferring tokens:', error);
-        // Don't throw fatal error to stop campaign, just log it. 
-        // We technically bought the tokens, they just didn't move.
-        // Return null or throw? Throwing causes the bot to mark "Buy Failed".
-        // Let's throw so it retries? 
-        // No, if we retry, we buy AGAIN.
-        // We really should separate Buy from Transfer.
-        // For now, throw so user knows.
         throw error;
     }
 }
@@ -235,5 +248,6 @@ async function transferTokens(tokenMint, amount, destinationWallet) {
 module.exports = {
     buyTokens,
     transferTokens,
-    getQuote
+    getQuote,
+    getTokenProgramId
 };
