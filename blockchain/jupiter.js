@@ -4,8 +4,8 @@ const { getConnection, getDepositKeypair, lamportsToSol, solToLamports } = requi
 const logger = require('../utils/logger');
 
 // Trying a different endpoint that might have better DNS resolution
-// Using official v6 API for maximum stability with Token-2022
-const JUPITER_API = 'https://quote-api.jup.ag/v6';
+// Reverting to public.jupiterapi.com for DNS stability on Digital Ocean
+const JUPITER_API = 'https://public.jupiterapi.com';
 
 const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 
