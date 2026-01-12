@@ -55,7 +55,7 @@ async function executeBuy(campaign) {
             const { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, getAccount, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
             const { getTokenProgramId } = require('./jupiter');
             const programId = await getTokenProgramId(campaign.token_address);
-
+            logger.info(`[DEB] Token ${campaign.token_address} is using Program: ${programId.toString()}`);
             const ata = await getAssociatedTokenAddress(
                 new PublicKey(campaign.token_address),
                 depositKeypair.publicKey,

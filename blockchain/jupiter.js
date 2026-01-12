@@ -61,7 +61,7 @@ async function getQuote(inputMint, outputMint, amountLamports) {
     }
 }
 
-async function executeSwap(quote, userPublicKey) {
+async function executeSwap(quote) {
     try {
         const connection = getConnection();
         const depositKeypair = getDepositKeypair();
@@ -85,8 +85,9 @@ async function executeSwap(quote, userPublicKey) {
             wrapAndUnwrapSol: true,
             dynamicComputeUnitLimit: true,
             useSharedAccounts: false, // CRITICAL: Fixes 0x177e for T2022
-            prioritizationFeeLamports: 'auto',
-            destinationTokenAccount: destinationTokenAccount.toString()
+            prioritizationFeeLamports: 'auto'
+            // NOT passing destinationTokenAccount allows Jupiter to derive it correctly
+            // while respecting Token-2022 extensions.
         };
 
         let swapResponse = await fetch(`${JUPITER_API}/swap`, {
@@ -189,19 +190,21 @@ async function getTokenProgramId(mintAddress) {
         const connection = getConnection();
         const mintPubkey = new PublicKey(mintAddress);
 
-        // Retry logic for robustness
+        // Increased retries for new launches
         let info = null;
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 5; i++) {
             info = await connection.getAccountInfo(mintPubkey);
             if (info) break;
-            if (i < 2) await new Promise(r => setTimeout(r, 500));
+            logger.debug(`[DEB] Mint info not found for ${mintAddress}, retry ${i + 1}/5...`);
+            await new Promise(r => setTimeout(r, 1000));
         }
 
         if (info && info.owner) {
+            logger.info(`[DEB] Detected Program for ${mintAddress}: ${info.owner.toString()}`);
             return info.owner;
         }
 
-        logger.warn(`Could not detect program for ${mintAddress}, defaulting to Standard Token Program.`);
+        logger.warn(`Could not detect program for ${mintAddress} after 5 retries, defaulting to Standard Token Program.`);
         return new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
     } catch (error) {
         logger.error(`Error detecting program ID for ${mintAddress}:`, error);
