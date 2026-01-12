@@ -5,9 +5,11 @@ const JUPITER_PRICE_API = 'https://price.jup.ag/v6/price?ids=SOL';
 
 async function getSolPrice() {
     try {
-        const response = await fetch(JUPITER_PRICE_API);
+        const response = await fetch(JUPITER_PRICE_API, {
+            headers: { 'User-Agent': 'RandyBuyBot/1.0' }
+        });
         if (!response.ok) {
-            throw new Error(`Price API failed: ${response.statusText}`);
+            throw new Error(`Price API failed (${response.status}): ${response.statusText}`);
         }
 
         const data = await response.json();

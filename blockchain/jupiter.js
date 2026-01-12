@@ -59,13 +59,15 @@ async function executeSwap(quote, userPublicKey) {
         const swapResponse = await fetch(`${JUPITER_API}/swap`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'User-Agent': 'RandyBuyBot/1.0'
             },
             body: JSON.stringify({
                 quoteResponse: quote,
                 userPublicKey: depositKeypair.publicKey.toString(),
                 wrapAndUnwrapSol: true,
                 dynamicComputeUnitLimit: true,
+                useSharedAccounts: false, // CRITICAL: Fixes 0x177e IncorrectTokenProgramID for Token-2022
                 prioritizationFeeLamports: 'auto'
             })
         });
