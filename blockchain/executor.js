@@ -83,6 +83,15 @@ async function executeBuy(campaign) {
             logger.warn(`Could not pre-create ATA: ${ataError.message}. Proceeding anyway...`);
         }
 
+        // --- GAS CHECK ---
+        const balance = await connection.getBalance(depositKeypair.publicKey);
+        const minGas = 0.005 * 1e9; // 0.005 SOL minimum for safety
+        if (balance < minGas) {
+            logger.warn(`Insufficient SOL for gas in deposit wallet (${depositKeypair.publicKey.toString()}). Balance: ${balance / 1e9} SOL. Skipping buy.`);
+            await notifyBuyFailed(campaign, (campaign.buys_completed || 0) + 1, "Insufficient SOL for gas fees (Minimum 0.005 SOL recommended). Please fund your deposit wallet.");
+            return;
+        }
+
         const solPrice = await price.getSolPrice();
         const buyAmountSOL = campaign.per_buy_usd / solPrice;
 

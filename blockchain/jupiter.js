@@ -23,9 +23,9 @@ async function getQuote(inputMint, outputMint, amountLamports) {
             amount: amountLamports.toString(),
             autoSlippage: 'true',
             maxAutoSlippageBps: '1500',
-            onlyDirectRoutes: 'true', // Simplified routes avoid Jup's complex account mapping bugs
-            asLegacyTransaction: 'false',
-            userPublicKey: wallet.toString() // Helping Jup see our existing ATA
+            onlyDirectRoutes: 'false', // Revert to false to allow Jup more flexibility
+            asLegacyTransaction: 'true', // Legacy transactions are often more robust for simulation
+            userPublicKey: wallet.toString()
         });
 
         const response = await fetch(`${JUPITER_API}/quote?${params}`);
@@ -86,7 +86,7 @@ async function executeSwap(quote, userPublicKey) {
                 userPublicKey: depositKeypair.publicKey.toString(),
                 wrapAndUnwrapSol: true,
                 dynamicComputeUnitLimit: true,
-                useSharedAccounts: false,
+                asLegacyTransaction: true,
                 prioritizationFeeLamports: 'auto',
                 destinationTokenAccount: destinationTokenAccount.toString()
             })
@@ -102,12 +102,13 @@ async function executeSwap(quote, userPublicKey) {
             throw new Error('No swap transaction returned from Jupiter');
         }
 
+        const { Transaction } = require('@solana/web3.js');
         const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
-        const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+        const transaction = Transaction.from(swapTransactionBuf); // Use Transaction instead of VersionedTransaction
 
         transaction.sign([depositKeypair]);
 
-        const signature = await connection.sendTransaction(transaction, {
+        const signature = await connection.sendTransaction(transaction, [depositKeypair], {
             skipPreflight: false,
             maxRetries: 3
         });

@@ -1,7 +1,7 @@
 const fetch = require('node-fetch');
 const logger = require('./logger');
 
-const JUPITER_PRICE_API = 'https://public.jupiterapi.com/price/v2?ids=So11111111111111111111111111111111111111112';
+const JUPITER_PRICE_API = 'https://api.jup.ag/price/v2?ids=SOL';
 
 async function getSolPrice() {
     try {
@@ -13,7 +13,7 @@ async function getSolPrice() {
         }
 
         const data = await response.json();
-        const price = data?.data?.['So11111111111111111111111111111111111111112']?.price;
+        const price = data?.data?.SOL?.price || data?.data?.['So11111111111111111111111111111111111111112']?.price;
 
         if (!price) {
             throw new Error('Invalid price data format');
