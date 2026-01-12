@@ -12,14 +12,20 @@ const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 // Increased default slippage to 10% (1000 bps) to handle new/volatile tokens
 async function getQuote(inputMint, outputMint, amountLamports) {
     try {
+        const { getDepositKeypair } = require('./wallet');
+        const { getAssociatedTokenAddress, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
+        const wallet = getDepositKeypair().publicKey;
+        const programId = await getTokenProgramId(outputMint);
+
         const params = new URLSearchParams({
             inputMint,
             outputMint,
             amount: amountLamports.toString(),
             autoSlippage: 'true',
-            maxAutoSlippageBps: '1500', // Allow up to 15% slippage automatically for volatile tokens
-            onlyDirectRoutes: 'false',
-            asLegacyTransaction: 'false'
+            maxAutoSlippageBps: '1500',
+            onlyDirectRoutes: 'true', // Simplified routes avoid Jup's complex account mapping bugs
+            asLegacyTransaction: 'false',
+            userPublicKey: wallet.toString() // Helping Jup see our existing ATA
         });
 
         const response = await fetch(`${JUPITER_API}/quote?${params}`);
@@ -67,7 +73,7 @@ async function executeSwap(quote, userPublicKey) {
                 userPublicKey: depositKeypair.publicKey.toString(),
                 wrapAndUnwrapSol: true,
                 dynamicComputeUnitLimit: true,
-                useSharedAccounts: false, // CRITICAL: Fixes 0x177e IncorrectTokenProgramID for Token-2022
+                useSharedAccounts: false,
                 prioritizationFeeLamports: 'auto'
             })
         });
