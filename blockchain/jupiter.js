@@ -4,7 +4,7 @@ const { getConnection, getDepositKeypair, lamportsToSol, solToLamports } = requi
 const logger = require('../utils/logger');
 
 // Using the official V6 API for most up-to-date Token-2022 routing
-const JUPITER_API = 'https://api.jup.ag/v6';
+const JUPITER_API = 'https://quote-api.jup.ag/v6';
 const JUPITER_API_FALLBACK = 'https://public.jupiterapi.com';
 
 const WSOL_MINT = 'So11111111111111111111111111111111111111112';
