@@ -79,6 +79,8 @@ async function executeBuy(campaign) {
                 );
                 const sig = await connection.sendTransaction(ataTx, [depositKeypair]);
                 await connection.confirmTransaction(sig, 'confirmed');
+                logger.info(`✅ ATA Created: ${sig}. Waiting 2s for RPC consistency...`);
+                await new Promise(r => setTimeout(r, 2000));
             }
         } catch (ataError) {
             logger.warn(`Could not pre-create ATA: ${ataError.message}. Proceeding anyway...`);
@@ -183,7 +185,7 @@ async function executeBuy(campaign) {
 
         return {
             success: false,
-            error: error.message
+            error: error.logs ? `Logs: ${JSON.stringify(error.logs)}` : error.message
         };
     }
 }

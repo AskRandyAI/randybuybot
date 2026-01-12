@@ -23,10 +23,11 @@ async function getQuote(inputMint, outputMint, amountLamports) {
             amount: amountLamports.toString(),
             autoSlippage: 'true',
             maxAutoSlippageBps: '2000',
-            onlyDirectRoutes: 'true', // CRITICAL: Avoid complex routes for T2022
-            asLegacyTransaction: 'true', // Reverting to Legacy for better simulation support on some RPCs
+            onlyDirectRoutes: 'true',
+            asLegacyTransaction: 'false', // Versioned transactions are better for T2022
             userPublicKey: wallet.toString()
         });
+        logger.info(`[DEB] Quote Params: ${params.toString()}`);
         logger.info(`[DEB] Quote Params: ${params.toString()}`);
 
         const response = await fetch(`${JUPITER_API}/quote?${params}`);
@@ -88,32 +89,32 @@ async function executeSwap(quote, userPublicKey) {
                 userPublicKey: depositKeypair.publicKey.toString(),
                 wrapAndUnwrapSol: true,
                 dynamicComputeUnitLimit: true,
-                useSharedAccounts: false, // CRITICAL: Prevents Jupiter from misusing program IDs
-                asLegacyTransaction: true,
+                useSharedAccounts: false,
                 prioritizationFeeLamports: 'auto',
                 destinationTokenAccount: destinationTokenAccount.toString()
             })
         });
-        logger.info(`[DEB] Swap Request sent.`);
 
         if (!swapResponse.ok) {
-            const errorData = await swapResponse.json();
-            throw new Error(`Jupiter swap failed: ${JSON.stringify(errorData)}`);
+            const errorText = await swapResponse.text();
+            throw new Error(`Jupiter swap error (${swapResponse.status}): ${errorText}`);
         }
 
-        const { swapTransaction } = await swapResponse.json();
+        const swapData = await swapResponse.json();
+        const { swapTransaction } = swapData;
 
         if (!swapTransaction) {
-            throw new Error('No swap transaction returned from Jupiter');
+            throw new Error(`No swap transaction: ${JSON.stringify(swapData)}`);
         }
 
-        const { Transaction } = require('@solana/web3.js');
+        logger.info(`[DEB] Received swap transaction. Signing...`);
         const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
-        const transaction = Transaction.from(swapTransactionBuf);
+        const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
 
         transaction.sign([depositKeypair]);
 
-        const signature = await connection.sendTransaction(transaction, [depositKeypair], {
+        logger.info(`[DEB] Sending transaction...`);
+        const signature = await connection.sendTransaction(transaction, {
             skipPreflight: false,
             maxRetries: 3
         });
