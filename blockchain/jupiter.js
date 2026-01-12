@@ -64,6 +64,8 @@ async function executeSwap(quote, userPublicKey) {
 
         const { getAssociatedTokenAddress, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
         const programId = await getTokenProgramId(quote.outputMint);
+        logger.info(`[DEB] Token: ${quote.outputMint}, Program: ${programId.toString()}`);
+
         const destinationTokenAccount = await getAssociatedTokenAddress(
             new PublicKey(quote.outputMint),
             depositKeypair.publicKey,
@@ -71,6 +73,7 @@ async function executeSwap(quote, userPublicKey) {
             programId,
             ASSOCIATED_TOKEN_PROGRAM_ID
         );
+        logger.info(`[DEB] Derived ATA: ${destinationTokenAccount.toString()}`);
 
         const swapResponse = await fetch(`${JUPITER_API}/swap`, {
             method: 'POST',
@@ -85,7 +88,7 @@ async function executeSwap(quote, userPublicKey) {
                 dynamicComputeUnitLimit: true,
                 useSharedAccounts: false,
                 prioritizationFeeLamports: 'auto',
-                destinationTokenAccount: destinationTokenAccount.toString() // Force Jupiter to use our pre-created ATA
+                destinationTokenAccount: destinationTokenAccount.toString()
             })
         });
 
@@ -162,11 +165,21 @@ async function buyTokens(tokenMint, amountSOL, slippageBps = 300) {
 async function getTokenProgramId(mintAddress) {
     try {
         const connection = getConnection();
-        const info = await connection.getAccountInfo(new PublicKey(mintAddress));
+        const mintPubkey = new PublicKey(mintAddress);
+
+        // Retry logic for robustness
+        let info = null;
+        for (let i = 0; i < 3; i++) {
+            info = await connection.getAccountInfo(mintPubkey);
+            if (info) break;
+            if (i < 2) await new Promise(r => setTimeout(r, 500));
+        }
+
         if (info && info.owner) {
             return info.owner;
         }
-        // Fallback to standard Token Program if not found (likely won't happen if mint is valid)
+
+        logger.warn(`Could not detect program for ${mintAddress}, defaulting to Standard Token Program.`);
         return new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
     } catch (error) {
         logger.error(`Error detecting program ID for ${mintAddress}:`, error);
