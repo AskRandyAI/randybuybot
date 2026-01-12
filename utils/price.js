@@ -1,7 +1,7 @@
 const fetch = require('node-fetch');
 const logger = require('./logger');
 
-const JUPITER_PRICE_API = 'https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112';
+const JUPITER_PRICE_API = 'https://price.jup.ag/v6/price?ids=SOL';
 
 async function getSolPrice() {
     try {
@@ -11,17 +11,15 @@ async function getSolPrice() {
         }
 
         const data = await response.json();
+        const price = data?.data?.SOL?.price;
 
-        // Jupiter v2 response format: { data: { "So111...": { id: "...", type: "derivedPrice", price: "123.45" } } }
-        const solData = data?.data?.['So11111111111111111111111111111111111111112'];
-
-        if (!solData || !solData.price) {
+        if (!price) {
             throw new Error('Invalid price data format');
         }
 
-        const price = parseFloat(solData.price);
-        logger.info(`💰 Current SOL Price: $${price}`);
-        return price;
+        const solPrice = parseFloat(price);
+        logger.info(`💰 Current SOL Price: $${solPrice}`);
+        return solPrice;
 
     } catch (error) {
         logger.warn(`Primary price API failed: ${error.message}. Trying backup...`);

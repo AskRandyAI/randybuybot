@@ -48,6 +48,41 @@ async function executeBuy(campaign) {
             logger.debug('No stuck tokens found or account missing.');
         }
 
+        // --- PRE-INITIALIZE ATA ---
+        // Creating the ATA BEFORE the swap is the most reliable way to avoid 0x177e errors
+        try {
+            const { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, getAccount, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
+            const { getTokenProgramId } = require('./jupiter');
+            const programId = await getTokenProgramId(campaign.token_address);
+
+            const ata = await getAssociatedTokenAddress(
+                new PublicKey(campaign.token_address),
+                depositKeypair.publicKey,
+                false,
+                programId,
+                ASSOCIATED_TOKEN_PROGRAM_ID
+            );
+
+            try {
+                await getAccount(connection, ata, 'confirmed', programId);
+            } catch (e) {
+                logger.info(`Creating required ATA for ${campaign.token_address} before swap...`);
+                const ataTx = new Transaction().add(
+                    createAssociatedTokenAccountInstruction(
+                        depositKeypair.publicKey,
+                        ata,
+                        depositKeypair.publicKey,
+                        new PublicKey(campaign.token_address),
+                        programId
+                    )
+                );
+                const sig = await connection.sendTransaction(ataTx, [depositKeypair]);
+                await connection.confirmTransaction(sig, 'confirmed');
+            }
+        } catch (ataError) {
+            logger.warn(`Could not pre-create ATA: ${ataError.message}. Proceeding anyway...`);
+        }
+
         const solPrice = await price.getSolPrice();
         const buyAmountSOL = campaign.per_buy_usd / solPrice;
 
