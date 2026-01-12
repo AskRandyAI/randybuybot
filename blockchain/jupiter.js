@@ -10,15 +10,14 @@ const JUPITER_API = 'https://public.jupiterapi.com';
 const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 
 // Increased default slippage to 10% (1000 bps) to handle new/volatile tokens
-async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 1000) {
+async function getQuote(inputMint, outputMint, amountLamports) {
     try {
-        // Log the exact URL for debugging
-        const url = `${JUPITER_API}/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountLamports}&slippageBps=${slippageBps}&onlyDirectRoutes=false&asLegacyTransaction=false`;
         const params = new URLSearchParams({
             inputMint,
             outputMint,
             amount: amountLamports.toString(),
-            slippageBps: slippageBps.toString(),
+            autoSlippage: 'true',
+            maxAutoSlippageBps: '1500', // Allow up to 15% slippage automatically for volatile tokens
             onlyDirectRoutes: 'false',
             asLegacyTransaction: 'false'
         });
@@ -27,17 +26,19 @@ async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 100
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Jupiter quote failed (${response.status}): ${errorText}`);
+            let errorMessage = `Jupiter quote failed (${response.status})`;
+            try {
+                const errJson = JSON.parse(errorText);
+                if (errJson.errorCode === 'TOKEN_NOT_TRADABLE') {
+                    errorMessage = "This token is not yet tradable on Raydium/Jupiter. Try again in a minute!";
+                } else if (errJson.error) {
+                    errorMessage = errJson.error;
+                }
+            } catch (e) { }
+            throw new Error(errorMessage);
         }
 
-        const responseText = await response.text();
-        let quote;
-        try {
-            quote = JSON.parse(responseText);
-        } catch (e) {
-            throw new Error(`Invalid JSON from Jupiter: ${responseText.substring(0, 100)}`);
-        }
-
+        const quote = await response.json();
         if (!quote || quote.error) {
             throw new Error(`Jupiter quote error: ${quote?.error || 'Unknown error'}`);
         }

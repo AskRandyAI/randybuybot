@@ -39,44 +39,44 @@ async function executeBuy(campaign) {
             logger.debug('No stuck tokens found, proceeding with fresh buy.');
         }
 
-        const feeWallet = await db.getAdminSetting('fee_wallet');
-        if (!feeWallet) {
-            throw new Error('Fee wallet not configured in admin settings');
-        }
-
-        const feeSOL = 0.001;
-
-        // --- FEE COLLECTION ---
-        const feeTransferIx = SystemProgram.transfer({
-            fromPubkey: depositKeypair.publicKey,
-            toPubkey: new PublicKey(feeWallet),
-            lamports: solToLamports(feeSOL)
-        });
-
-        const feeTransaction = new Transaction().add(feeTransferIx);
-        const feeSignature = await connection.sendTransaction(
-            feeTransaction,
-            [depositKeypair],
-            { skipPreflight: false }
-        );
-
-        await connection.confirmTransaction(feeSignature, 'confirmed');
-        logger.info(`Fee collected: ${feeSOL} SOL (tx: ${feeSignature})`);
-
         const solPrice = await price.getSolPrice();
         const buyAmountSOL = campaign.per_buy_usd / solPrice;
 
         logger.info(`Buying $${campaign.per_buy_usd} worth (${buyAmountSOL.toFixed(6)} SOL) of ${campaign.token_address}`);
 
+        // 1. Swap SOL for Tokens (This is where slippage happens)
         const swapResult = await buyTokens(
             campaign.token_address,
             buyAmountSOL
-            // Uses 10% default from jupiter.js
         );
 
+        // 2. ONLY IF SWAP SUCCEEDS - Collect Fee
+        let feeSignature = null;
+        let feeSOL = 0.001; // Approx $0.05-0.10 depending on price
+
+        try {
+            const feeWallet = await db.getAdminSetting('fee_wallet');
+            if (feeWallet) {
+                const feeTransferIx = SystemProgram.transfer({
+                    fromPubkey: depositKeypair.publicKey,
+                    toPubkey: new PublicKey(feeWallet),
+                    lamports: solToLamports(feeSOL)
+                });
+
+                const feeTransaction = new Transaction().add(feeTransferIx);
+                feeSignature = await connection.sendTransaction(feeTransaction, [depositKeypair]);
+                await connection.confirmTransaction(feeSignature, 'confirmed');
+                logger.info(`✅ Fee collected: ${feeSOL} SOL (tx: ${feeSignature})`);
+            }
+        } catch (feeError) {
+            // Log but don't fail the whole buy if fee collection fails (secondary)
+            logger.warn(`Warn: Fee collection failed after success: ${feeError.message}`);
+        }
+
+        // 3. Move Tokens to user
         const transferSignature = await transferTokens(
             campaign.token_address,
-            swapResult.outputAmount,
+            swapResult.outputAmount.toString(),
             campaign.destination_wallet
         );
 
@@ -87,19 +87,11 @@ async function executeBuy(campaign) {
             campaign.per_buy_usd,
             buyAmountSOL,
             swapResult.outputAmount,
-            feeSOL
+            feeSignature ? feeSOL : 0
         );
 
         const newBuysCompleted = campaign.buys_completed + 1;
         const isComplete = newBuysCompleted >= campaign.number_of_buys;
-
-        await db.updateCampaignProgress(
-            campaign.id,
-            newBuysCompleted,
-            isComplete ? 'completed' : 'active'
-        );
-
-        logger.info(`✅ Buy #${newBuysCompleted} completed for campaign ${campaign.id}`);
 
         const result = {
             success: true,
