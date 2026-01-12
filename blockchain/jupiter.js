@@ -22,11 +22,12 @@ async function getQuote(inputMint, outputMint, amountLamports) {
             outputMint,
             amount: amountLamports.toString(),
             autoSlippage: 'true',
-            maxAutoSlippageBps: '1500',
-            onlyDirectRoutes: 'true', // CRITICAL: Simple routes are safer for T2022
+            maxAutoSlippageBps: '2000', // 20% max auto-slippage
+            onlyDirectRoutes: 'false',
             asLegacyTransaction: 'false',
             userPublicKey: wallet.toString()
         });
+        logger.info(`[DEB] Quote Params: ${params.toString()}`);
 
         const response = await fetch(`${JUPITER_API}/quote?${params}`);
 
@@ -45,11 +46,11 @@ async function getQuote(inputMint, outputMint, amountLamports) {
         }
 
         const quote = await response.json();
-        if (!quote || quote.error) {
+        if (quote.error) {
             throw new Error(`Jupiter quote error: ${quote?.error || 'Unknown error'}`);
         }
 
-        logger.debug(`[DEB] Full Quote: ${JSON.stringify(quote)}`);
+        logger.info(`[DEB] Full Quote: ${JSON.stringify(quote)}`);
         return quote;
 
     } catch (error) {
@@ -87,11 +88,12 @@ async function executeSwap(quote, userPublicKey) {
                 userPublicKey: depositKeypair.publicKey.toString(),
                 wrapAndUnwrapSol: true,
                 dynamicComputeUnitLimit: true,
-                useSharedAccounts: false, // CRITICAL: Prevents Jupiter from misusing program IDs
+                useSharedAccounts: true, // Reverting to true for auto-routing
                 prioritizationFeeLamports: 'auto',
                 destinationTokenAccount: destinationTokenAccount.toString()
             })
         });
+        logger.info(`[DEB] Swap Request sent.`);
 
         if (!swapResponse.ok) {
             const errorData = await swapResponse.json();

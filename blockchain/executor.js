@@ -14,6 +14,7 @@ async function executeBuy(campaign) {
 
         const connection = getConnection();
         const depositKeypair = getDepositKeypair();
+        logger.info(`[DEB] Using Wallet: ${depositKeypair.publicKey.toString()}`);
 
         // --- NEW: STUCK TOKEN RECOVERY ---
         // Check if we already have the tokens (from a previous failed transfer)
