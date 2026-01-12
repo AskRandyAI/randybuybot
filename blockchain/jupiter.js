@@ -23,8 +23,8 @@ async function getQuote(inputMint, outputMint, amountLamports) {
             amount: amountLamports.toString(),
             autoSlippage: 'true',
             maxAutoSlippageBps: '1500',
-            onlyDirectRoutes: 'false', // Revert to false to allow Jup more flexibility
-            asLegacyTransaction: 'true', // Legacy transactions are often more robust for simulation
+            onlyDirectRoutes: 'true', // CRITICAL: Simple routes are safer for T2022
+            asLegacyTransaction: 'false',
             userPublicKey: wallet.toString()
         });
 
@@ -49,6 +49,7 @@ async function getQuote(inputMint, outputMint, amountLamports) {
             throw new Error(`Jupiter quote error: ${quote?.error || 'Unknown error'}`);
         }
 
+        logger.debug(`[DEB] Full Quote: ${JSON.stringify(quote)}`);
         return quote;
 
     } catch (error) {
@@ -86,14 +87,15 @@ async function executeSwap(quote, userPublicKey) {
                 userPublicKey: depositKeypair.publicKey.toString(),
                 wrapAndUnwrapSol: true,
                 dynamicComputeUnitLimit: true,
-                asLegacyTransaction: true,
+                useSharedAccounts: false, // CRITICAL: Prevents Jupiter from misusing program IDs
                 prioritizationFeeLamports: 'auto',
                 destinationTokenAccount: destinationTokenAccount.toString()
             })
         });
 
         if (!swapResponse.ok) {
-            throw new Error(`Jupiter swap failed: ${swapResponse.statusText}`);
+            const errorData = await swapResponse.json();
+            throw new Error(`Jupiter swap failed: ${JSON.stringify(errorData)}`);
         }
 
         const { swapTransaction } = await swapResponse.json();
@@ -102,13 +104,12 @@ async function executeSwap(quote, userPublicKey) {
             throw new Error('No swap transaction returned from Jupiter');
         }
 
-        const { Transaction } = require('@solana/web3.js');
         const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
-        const transaction = Transaction.from(swapTransactionBuf); // Use Transaction instead of VersionedTransaction
+        const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
 
         transaction.sign([depositKeypair]);
 
-        const signature = await connection.sendTransaction(transaction, [depositKeypair], {
+        const signature = await connection.sendTransaction(transaction, {
             skipPreflight: false,
             maxRetries: 3
         });
