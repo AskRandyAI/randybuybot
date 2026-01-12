@@ -62,6 +62,16 @@ async function executeSwap(quote, userPublicKey) {
         const connection = getConnection();
         const depositKeypair = getDepositKeypair();
 
+        const { getAssociatedTokenAddress, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
+        const programId = await getTokenProgramId(quote.outputMint);
+        const destinationTokenAccount = await getAssociatedTokenAddress(
+            new PublicKey(quote.outputMint),
+            depositKeypair.publicKey,
+            false,
+            programId,
+            ASSOCIATED_TOKEN_PROGRAM_ID
+        );
+
         const swapResponse = await fetch(`${JUPITER_API}/swap`, {
             method: 'POST',
             headers: {
@@ -74,7 +84,8 @@ async function executeSwap(quote, userPublicKey) {
                 wrapAndUnwrapSol: true,
                 dynamicComputeUnitLimit: true,
                 useSharedAccounts: false,
-                prioritizationFeeLamports: 'auto'
+                prioritizationFeeLamports: 'auto',
+                destinationTokenAccount: destinationTokenAccount.toString() // Force Jupiter to use our pre-created ATA
             })
         });
 
