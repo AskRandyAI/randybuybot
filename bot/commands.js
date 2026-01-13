@@ -447,7 +447,51 @@ async function handleCancel(bot, msg, userStates) {
 
 async function handleHistory(bot, msg) {
   const chatId = msg.chat.id;
-  await bot.sendMessage(chatId, '📜 No buy history yet');
+  const userId = msg.from.id;
+
+  try {
+    const history = await db.getUserBuyHistory(userId, 10);
+
+    if (!history || history.length === 0) {
+      await bot.sendMessage(chatId, '📜 No buy history yet');
+      return;
+    }
+
+    let message = '📜 *YOUR TRADE HISTORY*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+
+    for (const buy of history) {
+      const status = buy.status === 'success' ? '✅' : '❌';
+      const date = new Date(buy.executed_at).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      message += `${status} *${date}*\n`;
+      message += `💰 Amount: \`$${buy.amount_usd}\`\n`;
+
+      if (buy.status === 'success') {
+        message += `🪙 Tokens: \`${parseFloat(buy.tokens_received).toLocaleString()}\`\n`;
+        if (buy.swap_signature) {
+          message += `🔗 [View Swap](https://solscan.io/tx/${buy.swap_signature})\n`;
+        }
+      } else if (buy.error_message) {
+        message += `⚠️ Error: ${buy.error_message.substring(0, 50)}...\n`;
+      }
+
+      message += '\n';
+    }
+
+    await bot.sendMessage(chatId, message, {
+      parse_mode: 'Markdown',
+      disable_web_page_preview: true
+    });
+
+  } catch (error) {
+    logger.error('History error:', error);
+    await bot.sendMessage(chatId, '❌ Could not load trade history right now.');
+  }
 }
 
 async function handleHelp(bot, msg) {
