@@ -1,8 +1,8 @@
 const { FEE_PER_BUY_USD } = require('../config/constants');
 const price = require('./price');
 
-// Reserve ~$4 USD (approx 0.02 SOL) for gas fees/rent to prevent stuck wallets
-const GAS_RESERVE_USD = 4.00;
+// Reserve ~$1 USD for gas fees/rent to prevent stuck wallets
+const GAS_RESERVE_USD = 1.00;
 
 function calculateCampaign(totalDepositUSD, numberOfBuys) {
     const totalServiceFees = numberOfBuys * FEE_PER_BUY_USD;
