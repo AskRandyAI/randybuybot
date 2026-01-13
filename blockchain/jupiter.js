@@ -3,40 +3,58 @@ const fetch = require('node-fetch');
 const { getConnection, getDepositKeypair, lamportsToSol, solToLamports } = require('./wallet');
 const logger = require('../utils/logger');
 
-// Using the official V6 API for most up-to-date Token-2022 routing
-// Using public.jupiterapi.com for no-auth V6 access
-const JUPITER_API = 'https://public.jupiterapi.com';
-const JUPITER_API_V6 = 'https://quote-api.jup.ag/v6'; // Keep V6 one as backup for quotes
+const JUPITER_API_PUBLIC = 'https://public.jupiterapi.com';
+const JUPITER_API_V6 = 'https://quote-api.jup.ag/v6';
+const JUPITER_API_ULTRA = 'https://api.jup.ag/ultra/v1';
 
 const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 
-// Increased default slippage to 10% (1000 bps) to handle new/volatile tokens
 async function getQuote(inputMint, outputMint, amountLamports) {
     try {
         const { getDepositKeypair } = require('./wallet');
-        const { getAssociatedTokenAddress, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
         const wallet = getDepositKeypair().publicKey;
+
         const programId = await getTokenProgramId(outputMint);
+        const { getAssociatedTokenAddress, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
+        const destinationTokenAccount = await getAssociatedTokenAddress(
+            new PublicKey(outputMint),
+            wallet,
+            false,
+            programId,
+            ASSOCIATED_TOKEN_PROGRAM_ID
+        );
 
         const params = new URLSearchParams({
             inputMint,
             outputMint,
             amount: amountLamports.toString(),
-            autoSlippage: 'true',
-            maxAutoSlippageBps: '2000',
-            onlyDirectRoutes: 'false'
-            // REMOVED userPublicKey to force Jupiter to include ATA creation instructions in the swap tx
-        });
-        // Removed duplicate log line as per instruction
-        // logger.info(`[DEB] Quote Params: ${params.toString()}`); // This line was removed
-
-        let response = await fetch(`${JUPITER_API}/quote?${params}`, {
-            headers: { 'User-Agent': 'RandyBuyBot/1.0' }
+            taker: wallet.toString(),
+            slippageBps: '1000',
+            useSharedAccounts: 'false',
+            onlyDirectRoutes: 'false',
+            destinationTokenAccount: destinationTokenAccount.toString()
         });
 
-        if (!response.ok) {
-            logger.warn(`Primary Jup API failed (${response.status}). Trying V6 backup...`);
-            response = await fetch(`${JUPITER_API_V6}/quote?${params}`, {
+        const JUP_KEY = process.env.JUPITER_API_KEY;
+        const JUP_BASE = JUP_KEY ? JUPITER_API_ULTRA : JUPITER_API_PUBLIC;
+        const url = `${JUP_BASE}/order?${params}`;
+        let response = await fetch(url, {
+            headers: {
+                'User-Agent': 'RandyBuyBot/1.0',
+                'x-api-key': JUP_KEY || ''
+            }
+        });
+
+        if (!response.ok && JUP_KEY) {
+            logger.warn(`Ultra API failed (${response.status}). Trying V6 backup...`);
+            const v6Params = new URLSearchParams({
+                inputMint,
+                outputMint,
+                amount: amountLamports.toString(),
+                autoSlippage: 'true',
+                maxAutoSlippageBps: '2000'
+            });
+            response = await fetch(`${JUPITER_API_V6}/quote?${v6Params}`, {
                 headers: { 'User-Agent': 'RandyBuyBot/1.0' }
             });
         }
@@ -48,10 +66,9 @@ async function getQuote(inputMint, outputMint, amountLamports) {
 
         const quote = await response.json();
         if (quote.error) {
-            throw new Error(`Jupiter quote error: ${quote?.error || 'Unknown error'}`);
+            throw new Error(`Jupiter quote error: ${quote.error}`);
         }
 
-        logger.info(`[DEB] Full Quote: ${JSON.stringify(quote)}`);
         return quote;
 
     } catch (error) {
@@ -67,7 +84,6 @@ async function executeSwap(quote) {
 
         const { getAssociatedTokenAddress, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
         const programId = await getTokenProgramId(quote.outputMint);
-        logger.info(`[DEB] Token: ${quote.outputMint}, Program: ${programId.toString()}`);
 
         const destinationTokenAccount = await getAssociatedTokenAddress(
             new PublicKey(quote.outputMint),
@@ -76,19 +92,55 @@ async function executeSwap(quote) {
             programId,
             ASSOCIATED_TOKEN_PROGRAM_ID
         );
-        logger.info(`[DEB] Derived ATA: ${destinationTokenAccount.toString()}`);
+
+        const JUPITER_API_KEY = process.env.JUPITER_API_KEY;
+        const JUP_API = JUPITER_API_KEY ? JUPITER_API_ULTRA : JUPITER_API_PUBLIC;
+
+        if (JUPITER_API_KEY && quote.transaction) {
+            logger.info(`[DEB] Using Ultra Execute...`);
+            const transactionBuf = Buffer.from(quote.transaction, 'base64');
+            const transaction = VersionedTransaction.deserialize(transactionBuf);
+            transaction.sign([depositKeypair]);
+
+            const signedTransaction = Buffer.from(transaction.serialize()).toString('base64');
+            const executeResponse = await fetch(`${JUP_API}/execute`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'RandyBuyBot/1.0',
+                    'x-api-key': JUPITER_API_KEY
+                },
+                body: JSON.stringify({
+                    signedTransaction,
+                    requestId: quote.requestId
+                })
+            });
+
+            if (!executeResponse.ok) {
+                const errorText = await executeResponse.text();
+                throw new Error(`Jupiter Ultra execute failed: ${errorText}`);
+            }
+
+            const executeData = await executeResponse.json();
+            return {
+                signature: executeData.signature,
+                inputAmount: lamportsToSol(quote.inAmount),
+                outputAmount: Number(quote.outAmount),
+                outputMint: quote.outputMint
+            };
+        }
 
         const swapBody = {
             quoteResponse: quote,
             userPublicKey: depositKeypair.publicKey.toString(),
             wrapAndUnwrapSol: true,
             dynamicComputeUnitLimit: true,
-            useSharedAccounts: false, // CRITICAL: Fixes 0x177e for T2022
+            useSharedAccounts: false,
             prioritizationFeeLamports: 'auto',
-            destinationTokenAccount: destinationTokenAccount.toString() // Explicitly pass the T2022-aware ATA
+            destinationTokenAccount: destinationTokenAccount.toString()
         };
 
-        let swapResponse = await fetch(`${JUPITER_API}/swap`, {
+        const swapResponse = await fetch(`${JUPITER_API_V6}/swap`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -97,51 +149,17 @@ async function executeSwap(quote) {
             body: JSON.stringify(swapBody)
         });
 
-        if (!swapResponse.ok && swapResponse.status === 401) {
-            logger.warn(`Unauthorized on public API. Trying V6 backup...`);
-            swapResponse = await fetch(`${JUPITER_API_V6}/swap`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'RandyBuyBot/1.0'
-                },
-                body: JSON.stringify(swapBody)
-            });
-        }
-
         if (!swapResponse.ok) {
             const errorText = await swapResponse.text();
             throw new Error(`Jupiter swap error: ${errorText}`);
         }
 
         const swapData = await swapResponse.json();
-        const { swapTransaction } = swapData;
-
-        if (!swapTransaction) {
-            throw new Error(`No swap transaction: ${JSON.stringify(swapData)}`);
-        }
-
-        logger.info(`[DEB] Received swap transaction. Signing...`);
-        const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
-        const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
-
+        const transaction = VersionedTransaction.deserialize(Buffer.from(swapData.swapTransaction, 'base64'));
         transaction.sign([depositKeypair]);
 
-        logger.info(`[DEB] Sending transaction...`);
-        const signature = await connection.sendTransaction(transaction, {
-            skipPreflight: false,
-            maxRetries: 3
-        });
-
-        logger.info(`Swap transaction sent: ${signature}`);
-
-        const confirmation = await connection.confirmTransaction(signature, 'confirmed');
-
-        if (confirmation.value.err) {
-            throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
-        }
-
-        logger.info(`Swap transaction confirmed: ${signature}`);
+        const signature = await connection.sendTransaction(transaction);
+        await connection.confirmTransaction(signature, 'confirmed');
 
         return {
             signature,
