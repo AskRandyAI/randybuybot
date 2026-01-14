@@ -77,13 +77,15 @@ async function notifyBuyCompleted(campaign, buyResult) {
         `✅ *BUY #${buyResult.buyNumber} COMPLETE*\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
         `💸 *Spent:* \`$${campaign.per_buy_usd}\`\n` +
-        `🪙 *Bought:* \`${buyResult.tokensReceived}\` tokens\n\n` +
+        `🪙 *Bought Now:* \`${buyResult.tokensReceived}\`\n` +
+        `📦 *Total Pooled:* \`${buyResult.totalAccumulated}\`\n\n` +
         `📈 *PROGRESS:* ${buyResult.buyNumber}/${buyResult.totalBuys}\n` +
         `${progress}\n\n` +
         `🔗 *Swap:* \`${buyResult.swapSignature.substring(0, 12)}...\`\n\n` +
         (buyResult.isComplete
             ? `🎉 *CAMPAIGN FINISHED!*`
             : `⏰ *Next buy in:* \`${campaign.interval_minutes}m\``);
+
 
     await sendNotification(campaign.telegram_id, message, {
         reply_markup: {

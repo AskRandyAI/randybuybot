@@ -235,16 +235,12 @@ async function handleConfirm(bot, msg, userStates) {
       userState.data.numberOfBuys
     );
 
-    const depositAddress = process.env.DEPOSIT_WALLET_ADDRESS;
-    if (!depositAddress) {
-      await bot.sendMessage(
-        chatId,
-        '❌ Deposit wallet address is missing.\n' +
-        'Contact support - bot is not configured properly.'
-      );
-      userStates.delete(userId);
-      return;
-    }
+    // 0. Generate Unique Wallet for this campaign
+    const { Keypair } = require('@solana/web3.js');
+    const bs58 = require('bs58');
+    const newKeypair = Keypair.generate();
+    const depositAddress = newKeypair.publicKey.toString();
+    const depositPrivateKey = bs58.encode(newKeypair.secretKey);
 
     // 1. Get real price
     let currentPrice;
@@ -254,6 +250,7 @@ async function handleConfirm(bot, msg, userStates) {
       await bot.sendMessage(chatId, '❌ Failed to fetch current SOL price. Please try again.');
       return;
     }
+
 
     // 2. Calculate Base Expected SOL
     const baseExpectedSOL = calc.expectedDepositSOL; // This was based on fixed $200 before, we need to recalculate if calculator uses fixed price.
@@ -285,8 +282,11 @@ async function handleConfirm(bot, msg, userStates) {
       interval: userState.data.interval,
       totalFees: calc.totalFees, // Keep as is
       perBuyAmount: calc.perBuyAmount, // Keep as is
-      expectedDepositSOL: finalExpectedSOL.toFixed(9) // Use the new unique amount
+      expectedDepositSOL: finalExpectedSOL.toFixed(9), // Use the new unique amount
+      depositAddress: depositAddress,
+      depositPrivateKey: depositPrivateKey
     });
+
 
     await bot.sendMessage(
       chatId,
@@ -349,11 +349,11 @@ async function handleStatus(bot, msg) {
 
     // Check if campaign is waiting for deposit
     if (campaign.status === 'awaiting_deposit') {
-      const { getConnection, getDepositPublicKey } = require('../blockchain/wallet');
+      const { getConnection, lamportsToSol } = require('../blockchain/wallet');
       const connection = getConnection();
-      const pubKey = getDepositPublicKey();
+      const pubKey = new PublicKey(campaign.deposit_address);
       const balanceLamports = await connection.getBalance(pubKey);
-      const balanceSOL = balanceLamports / 1000000000;
+      const balanceSOL = lamportsToSol(balanceLamports);
 
       if (balanceSOL >= parseFloat(campaign.expected_deposit_sol) * 0.5) {
         await db.updateCampaignStatus(campaign.id, 'active');
@@ -370,7 +370,7 @@ async function handleStatus(bot, msg) {
         const updated = await db.getActiveCampaign(userId);
         if (updated) Object.assign(campaign, updated);
       } else {
-        const depositAddress = process.env.DEPOSIT_WALLET_ADDRESS;
+        const depositAddress = campaign.deposit_address;
         await bot.sendMessage(
           chatId,
           `⏳ *WAITING FOR DEPOSIT*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -380,6 +380,7 @@ async function handleStatus(bot, msg) {
           { parse_mode: 'Markdown' }
         );
       }
+
     }
 
     const progress = messages.progressBar(campaign.buys_completed, campaign.number_of_buys);

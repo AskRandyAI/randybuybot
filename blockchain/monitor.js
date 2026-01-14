@@ -1,4 +1,6 @@
 const { getConnection, getDepositPublicKey, lamportsToSol } = require('./wallet');
+const { PublicKey } = require('@solana/web3.js');
+
 const db = require('../database/queries');
 const logger = require('../utils/logger');
 const { DEPOSIT_CHECK_INTERVAL_MS } = require('../config/constants');
@@ -83,22 +85,30 @@ async function checkWalletBalanceForPendingCampaigns() {
         if (pendingCampaigns.length === 0) return;
 
         const connection = getConnection();
-        const depositWallet = getDepositPublicKey();
-        const balanceLamports = await connection.getBalance(depositWallet);
-        const balanceSOL = lamportsToSol(balanceLamports);
 
         for (const campaign of pendingCampaigns) {
+            // Check the balance of the UNIQUE wallet for this campaign
+            if (!campaign.deposit_address) {
+                logger.warn(`Campaign ${campaign.id} is awaiting deposit but has no unique address!`);
+                continue;
+            }
+
+            const pubKey = new PublicKey(campaign.deposit_address);
+            const balanceLamports = await connection.getBalance(pubKey);
+            const balanceSOL = lamportsToSol(balanceLamports);
+
             const expected = parseFloat(campaign.expected_deposit_sol);
             // Allow 50% threshold for testing/flexibility (same as /status command)
             if (balanceSOL >= expected * 0.5) {
-                logger.info(`💰 Auto-Sweep: Wallet balance (${balanceSOL}) covers campaign ${campaign.id} (${expected}). Activating!`);
-                await activateCampaign(campaign, balanceSOL, 'AUTO_SWEEP_BALANCE');
+                logger.info(`💰 Auto-Sweep: Campaign ${campaign.id} unique wallet balance (${balanceSOL}) covers expected (${expected}). Activating!`);
+                await activateCampaign(campaign, balanceSOL, 'AUTO_SWEEP_UNIQUE');
             }
         }
     } catch (error) {
         logger.error('Error in auto-sweep:', error);
     }
 }
+
 
 async function processTransaction(connection, signature) {
     try {

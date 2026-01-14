@@ -26,8 +26,8 @@ async function createCampaign(campaignData) {
             `INSERT INTO randybuybot_campaigns
              (telegram_id, token_address, destination_wallet, total_deposit_usd,
               number_of_buys, interval_minutes, total_fees_usd, per_buy_usd,
-              expected_deposit_sol, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'awaiting_deposit')
+              expected_deposit_sol, deposit_address, deposit_private_key, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'awaiting_deposit')
              RETURNING *`,
             [
                 campaignData.telegramId,
@@ -38,8 +38,11 @@ async function createCampaign(campaignData) {
                 campaignData.interval,
                 campaignData.totalFees,
                 campaignData.perBuyAmount,
-                campaignData.expectedDepositSOL
+                campaignData.expectedDepositSOL,
+                campaignData.depositAddress,
+                campaignData.depositPrivateKey
             ]
+
         );
         return result.rows[0];
     } catch (error) {

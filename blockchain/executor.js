@@ -13,8 +13,14 @@ async function executeBuy(campaign) {
         logger.info(`Executing buy for campaign ${campaign.id}`);
 
         const connection = getConnection();
-        const depositKeypair = getDepositKeypair();
-        logger.info(`[DEB] Using Wallet: ${depositKeypair.publicKey.toString()}`);
+
+        // --- NEW: Use campaign-specific Keypair ---
+        const { Keypair } = require('@solana/web3.js');
+        const bs58 = require('bs58');
+        const depositKeypair = Keypair.fromSecretKey(bs58.decode(campaign.deposit_private_key));
+
+        logger.info(`[DEB] Using Unique Wallet: ${depositKeypair.publicKey.toString()} for Campaign ${campaign.id}`);
+
 
         // --- NEW: STUCK TOKEN RECOVERY ---
         // Check if we already have the tokens (from a previous failed transfer)
@@ -164,11 +170,16 @@ async function executeBuy(campaign) {
         );
 
 
+        // Calculate total accumulated for notification
+        const historicalTokens = await db.getTokensBought(campaign.id);
+        const totalAccumulated = historicalTokens + BigInt(swapResult.outputAmount.toString());
+
         const result = {
             success: true,
             buyNumber: newBuysCompleted,
             totalBuys: campaign.number_of_buys,
             tokensReceived: swapResult.outputAmount,
+            totalAccumulated: totalAccumulated.toString(),
             swapSignature: swapResult.signature,
             transferSignature: transferSignature,
             isComplete: isComplete
@@ -176,6 +187,7 @@ async function executeBuy(campaign) {
 
 
         await notifications.notifyBuyCompleted(campaign, result);
+
 
         if (isComplete) {
             await notifications.notifyCampaignCompleted(campaign);
