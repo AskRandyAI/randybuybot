@@ -24,8 +24,8 @@ function helpMessage() {
 📜 /history \- View past trade performance
 ❌ /cancel \- Stop campaign & refund
 
-📈 *Fees:* \`$${FEE_PER_BUY_USD}\` per buy 
-⛽ *Gas Buffer:* \`$4.00\` (Reserved for network safety)`;
+📈 *Fees:* \`$${FEE_PER_BUY_USD}\` per buy
+`;
 }
 
 function progressBar(current, total) {
@@ -49,8 +49,8 @@ function campaignSummary(campaignData, calc, interval) {
 💰 *FINANCIALS*
 • Total Deposit: \`$${(calc.totalDeposit || 0).toFixed(2)}\`
 • Bot Fees: \`$${(calc.totalFees || 0).toFixed(2)}\`
-• Gas Reserve: \`$${(calc.gasReserve || 0).toFixed(2)}\`
 • Net Capital: \`$${(calc.availableForBuys || 0).toFixed(2)}\`
+
 
 ⏰ *SCHEDULE*
 • Per Buy: \`$${(calc.perBuyAmount || 0).toFixed(2)}\`

@@ -396,9 +396,9 @@ async function handleStatus(bot, msg) {
       `💰 *DETAILS:*\n` +
       `• Total Deposit: \`$${campaign.total_deposit_usd}\`\n` +
       `• Net Capital: \`$${(campaign.per_buy_usd * campaign.number_of_buys).toFixed(2)}\`\n` +
-      `• Bot Fees: \`$${parseFloat(campaign.total_fees_usd).toFixed(2)}\`\n` +
-      `• Gas Reserve: \`$4.00\` (Safety)\n\n` +
+      `• Bot Fees: \`$${parseFloat(campaign.total_fees_usd).toFixed(2)}\`\n\n` +
       `• Per Buy: \`$${campaign.per_buy_usd}\`\n` +
+
       `• Interval: \`${campaign.interval_minutes} minutes\``,
       {
         parse_mode: 'Markdown',

@@ -1,0 +1,9 @@
+import pandas as pd
+excel_path = r"c:\Users\HHeltzinger\Desktop\WaterIsLife\WaterIsLife.xlsx"
+xl = pd.ExcelFile(excel_path)
+for sheet in xl.sheet_names:
+    df = xl.parse(sheet)
+    mask = df.apply(lambda row: row.astype(str).str.contains('PL', case=False).any(), axis=1)
+    if mask.any():
+        print(f"Found 'PL' in sheet '{sheet}':")
+        print(df[mask].head(5))

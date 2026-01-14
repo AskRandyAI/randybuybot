@@ -1,6 +1,7 @@
 const constants = require('../config/constants');
-const FEE_PER_BUY_USD = constants.FEE_PER_BUY_USD || 0.05;
-const GAS_RESERVE_USD = constants.GAS_RESERVE_USD || 4.00;
+const FEE_PER_BUY_USD = constants.FEE_PER_BUY_USD !== undefined ? constants.FEE_PER_BUY_USD : 0.05;
+const GAS_RESERVE_USD = constants.GAS_RESERVE_USD !== undefined ? constants.GAS_RESERVE_USD : 4.00;
+
 const price = require('./price');
 
 
