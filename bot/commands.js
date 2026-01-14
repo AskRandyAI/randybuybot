@@ -384,6 +384,8 @@ async function handleStatus(bot, msg) {
 
     const progress = messages.progressBar(campaign.buys_completed, campaign.number_of_buys);
 
+    const tokensBought = await db.getTokensBought(campaign.id);
+
     await bot.sendMessage(
       chatId,
       `📊 *ACTIVE CAMPAIGN* (ID: ${campaign.id})\n` +
@@ -396,10 +398,12 @@ async function handleStatus(bot, msg) {
       `💰 *DETAILS:*\n` +
       `• Total Deposit: \`$${campaign.total_deposit_usd}\`\n` +
       `• Net Capital: \`$${(campaign.per_buy_usd * campaign.number_of_buys).toFixed(2)}\`\n` +
-      `• Bot Fees: \`$${parseFloat(campaign.total_fees_usd).toFixed(2)}\`\n\n` +
+      `• Bot Fees: \`$${parseFloat(campaign.total_fees_usd).toFixed(2)}\`\n` +
+      `• Pooled Tokens: \`${tokensBought.toString()}\`\n\n` +
       `• Per Buy: \`$${campaign.per_buy_usd}\`\n` +
+      `• Interval: \`${campaign.interval_minutes} minutes\`\n\n` +
+      `🎁 *Note:* Tokens are pooled in your secure deposit wallet and will be batch transferred to your destination after the final buy to save on gas fees.`,
 
-      `• Interval: \`${campaign.interval_minutes} minutes\``,
       {
         parse_mode: 'Markdown',
         reply_markup: {

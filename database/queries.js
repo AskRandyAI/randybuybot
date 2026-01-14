@@ -229,6 +229,23 @@ async function updateNextBuyTime(campaignId, nextBuyTime) {
     }
 }
 
+// Get total tokens bought for a campaign
+async function getTokensBought(campaignId) {
+    try {
+        const result = await pool.query(
+            `SELECT COALESCE(SUM(tokens_received::numeric), 0) as total_tokens
+             FROM randybuybot_buys 
+             WHERE campaign_id = $1 AND status = 'success'`,
+            [campaignId]
+        );
+        return BigInt(Math.floor(result.rows[0].total_tokens));
+    } catch (error) {
+        logger.error('Error getting tokens bought:', error);
+        throw error;
+    }
+}
+
+
 // ===== NEW: Enhanced User History Queries =====
 
 // Get complete user history with all campaigns and transactions
@@ -453,7 +470,9 @@ module.exports = {
     updateCampaignProgress,
     getDueCampaigns,
     updateNextBuyTime,
+    getTokensBought,
     // New exports
+
     getUserFullHistory,
     getUserStats,
     getAllUsers,

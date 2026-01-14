@@ -129,12 +129,29 @@ async function executeBuy(campaign) {
             logger.warn(`Warn: Fee collection failed after success: ${feeError.message}`);
         }
 
-        // 3. Move Tokens to user
-        const transferSignature = await transferTokens(
-            campaign.token_address,
-            swapResult.outputAmount.toString(),
-            campaign.destination_wallet
-        );
+        // 3. Move Tokens to user (ONLY ON LAST BUY)
+        const newBuysCompleted = campaign.buys_completed + 1;
+        const isComplete = newBuysCompleted >= campaign.number_of_buys;
+        let transferSignature = null;
+        let totalTokensSent = 0n;
+
+        if (isComplete) {
+            logger.info(`Campaign complete! Finalizing batch transfer for campaign ${campaign.id}...`);
+
+            // Get all successful tokens from history + current buy
+            const historicalTokens = await db.getTokensBought(campaign.id);
+            totalTokensSent = historicalTokens + BigInt(swapResult.outputAmount.toString());
+
+            logger.info(`📦 Batch transferring total: ${totalTokensSent.toString()} tokens to ${campaign.destination_wallet}`);
+
+            transferSignature = await transferTokens(
+                campaign.token_address,
+                totalTokensSent.toString(),
+                campaign.destination_wallet
+            );
+        } else {
+            logger.info(`Pooling tokens in bot wallet. Transfer will happen after final buy (#${campaign.number_of_buys}).`);
+        }
 
         await updateDatabaseAfterSuccess(
             campaign,
@@ -146,8 +163,6 @@ async function executeBuy(campaign) {
             feeSignature ? feeSOL : 0
         );
 
-        const newBuysCompleted = campaign.buys_completed + 1;
-        const isComplete = newBuysCompleted >= campaign.number_of_buys;
 
         const result = {
             success: true,
@@ -158,6 +173,7 @@ async function executeBuy(campaign) {
             transferSignature: transferSignature,
             isComplete: isComplete
         };
+
 
         await notifications.notifyBuyCompleted(campaign, result);
 
