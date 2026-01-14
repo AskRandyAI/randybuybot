@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 30
+    },
+    "auditLog": "C:\\Users\\HHeltzinger\\Desktop\\randyai-randybuybot\\logs\\.59b28ffe690c7e4cac82581662a18aa78be66d0b-audit.json",
+    "files": [
+        {
+            "date": 1768420864516,
+            "name": "C:\\Users\\HHeltzinger\\Desktop\\randyai-randybuybot\\logs\\combined-2026-01-14.log",
+            "hash": "05db2b6f598c5f0af1c000bb3115bf27e0e03c4a443ecc167a018f45601a7769"
+        }
+    ],
+    "hashType": "sha256"
+}

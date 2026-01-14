@@ -4,6 +4,8 @@ const validator = require('../utils/validator');
 const messages = require('./messages');
 const logger = require('../utils/logger');
 const db = require('../database/queries');
+const { MIN_INTERVAL_MINUTES } = require('../config/constants');
+
 
 async function handleStart(bot, msg) {
   const chatId = msg.chat.id;
@@ -143,17 +145,22 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
           chatId,
           '✅ Number of buys saved!\n\n' +
           'Step 5 of 5: Buy interval (minutes)?\n' +
-          'Minimum: 5 minutes\n' +
+          `Minimum: ${MIN_INTERVAL_MINUTES} minutes\n` +
           'Examples: 5, 10, 30, 60'
         );
+
         break;
 
       case 'interval':
-        const interval = parseInt(msg.text, 10);
-        if (isNaN(interval) || interval < 5) {
-          await bot.sendMessage(chatId, '❌ Minimum 5 minutes. Please try again:');
+        const rawInterval = (msg.text || '').trim();
+        const intervalMatch = rawInterval.match(/^(\d+)/);
+        const interval = intervalMatch ? parseInt(intervalMatch[1], 10) : NaN;
+
+        if (isNaN(interval) || interval < MIN_INTERVAL_MINUTES) {
+          await bot.sendMessage(chatId, `❌ Minimum ${MIN_INTERVAL_MINUTES} minutes. Please try again:`);
           return;
         }
+
 
         userState.data.interval = interval;
 
@@ -196,7 +203,8 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
 
   } catch (error) {
     logger.error('Campaign setup error:', error);
-    await bot.sendMessage(chatId, '❌ An error occurred. Please try again with /newcampaign');
+    // Temporary debug: show error to user
+    await bot.sendMessage(chatId, `❌ An error occurred: ${error.message}\n\nPlease try again with /newcampaign or contact support.`);
     userStates.delete(userId);
   }
 }
@@ -450,47 +458,131 @@ async function handleHistory(bot, msg) {
   const userId = msg.from.id;
 
   try {
-    const history = await db.getUserBuyHistory(userId, 10);
+    // Get user stats summary
+    const stats = await db.getUserStats(userId);
+    const fullHistory = await db.getUserFullHistory(userId);
 
-    if (!history || history.length === 0) {
-      await bot.sendMessage(chatId, '📜 No buy history yet');
+    if (!fullHistory || fullHistory.length === 0) {
+      await bot.sendMessage(chatId, '📜 No transaction history yet.\n\nStart your first campaign with /newcampaign!');
       return;
     }
 
-    let message = '📜 *YOUR TRADE HISTORY*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+    // Build stats summary
+    let message = '📊 *YOUR ACCOUNT SUMMARY*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+    message += `📈 *Campaigns:* ${stats.total_campaigns} total\n`;
+    message += `   • Active: ${stats.active_campaigns}\n`;
+    message += `   • Completed: ${stats.completed_campaigns}\n\n`;
+    message += `💰 *Trading Stats:*\n`;
+    message += `   • Total Buys: ${stats.total_buys}\n`;
+    message += `   • Successful: ${stats.successful_buys} ✅\n`;
+    message += `   • Failed: ${stats.failed_buys} ❌\n`;
+    message += `   • Total Spent: \`$${parseFloat(stats.total_spent_usd).toFixed(2)}\`\n`;
+    message += `   • Gas Fees: \`${parseFloat(stats.total_fees_sol).toFixed(4)} SOL\`\n\n`;
 
-    for (const buy of history) {
-      const status = buy.status === 'success' ? '✅' : '❌';
-      const date = new Date(buy.executed_at).toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+    await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
 
-      message += `${status} *${date}*\n`;
-      message += `💰 Amount: \`$${buy.amount_usd}\`\n`;
-
-      if (buy.status === 'success') {
-        message += `🪙 Tokens: \`${parseFloat(buy.tokens_received).toLocaleString()}\`\n`;
-        if (buy.swap_signature) {
-          message += `🔗 [View Swap](https://solscan.io/tx/${buy.swap_signature})\n`;
-        }
-      } else if (buy.error_message) {
-        message += `⚠️ Error: ${buy.error_message.substring(0, 50)}...\n`;
+    // Group transactions by campaign
+    const campaigns = {};
+    for (const row of fullHistory) {
+      if (!campaigns[row.campaign_id]) {
+        campaigns[row.campaign_id] = {
+          info: {
+            id: row.campaign_id,
+            token: row.token_address,
+            totalUsd: row.total_deposit_usd,
+            status: row.campaign_status,
+            created: row.campaign_created,
+            completed: row.completed_at,
+            depositSig: row.deposit_signature
+          },
+          buys: []
+        };
       }
 
-      message += '\n';
+      if (row.buy_id) {
+        campaigns[row.campaign_id].buys.push({
+          id: row.buy_id,
+          swapSig: row.swap_signature,
+          transferSig: row.transfer_signature,
+          amountUsd: row.amount_usd,
+          amountSol: row.amount_sol,
+          tokens: row.tokens_received,
+          feeSol: row.fee_paid_sol,
+          status: row.buy_status,
+          executedAt: row.executed_at,
+          error: row.error_message
+        });
+      }
     }
 
-    await bot.sendMessage(chatId, message, {
-      parse_mode: 'Markdown',
-      disable_web_page_preview: true
-    });
+    // Send campaign details (limit to last 5 campaigns)
+    const campaignIds = Object.keys(campaigns).slice(0, 5);
+
+    for (const campaignId of campaignIds) {
+      const campaign = campaigns[campaignId];
+      const info = campaign.info;
+
+      let campaignMsg = `\n🎯 *CAMPAIGN #${info.id}*\n━━━━━━━━━━━━━━━━━━━━━━━\n`;
+      campaignMsg += `📌 Status: \`${info.status.toUpperCase()}\`\n`;
+      campaignMsg += `🪙 Token: \`${info.token.substring(0, 12)}...\`\n`;
+      campaignMsg += `💵 Deposit: \`$${info.totalUsd}\`\n`;
+      campaignMsg += `📅 Created: ${new Date(info.created).toLocaleDateString()}\n`;
+
+      if (info.depositSig && info.depositSig !== 'PRE_FUNDED_OR_MANUAL') {
+        campaignMsg += `🔗 [Deposit Tx](https://solscan.io/tx/${info.depositSig})\n`;
+      }
+
+      campaignMsg += `\n💼 *Transactions (${campaign.buys.length}):*\n`;
+
+      // Show last 5 buys for this campaign
+      const recentBuys = campaign.buys.slice(0, 5);
+      for (const buy of recentBuys) {
+        const statusIcon = buy.status === 'success' ? '✅' : '❌';
+        const date = new Date(buy.executedAt).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        campaignMsg += `\n${statusIcon} ${date} - \`$${buy.amountUsd}\`\n`;
+
+        if (buy.status === 'success') {
+          campaignMsg += `   🪙 Tokens: \`${parseFloat(buy.tokens).toLocaleString()}\`\n`;
+          if (buy.swapSig) {
+            campaignMsg += `   🔗 [Swap](https://solscan.io/tx/${buy.swapSig})`;
+            if (buy.transferSig) {
+              campaignMsg += ` | [Transfer](https://solscan.io/tx/${buy.transferSig})`;
+            }
+            campaignMsg += '\n';
+          }
+        } else if (buy.error) {
+          const shortError = buy.error.length > 40 ? buy.error.substring(0, 40) + '...' : buy.error;
+          campaignMsg += `   ⚠️ ${shortError}\n`;
+        }
+      }
+
+      if (campaign.buys.length > 5) {
+        campaignMsg += `\n_...and ${campaign.buys.length - 5} more transactions_\n`;
+      }
+
+      await bot.sendMessage(chatId, campaignMsg, {
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true
+      });
+    }
+
+    if (Object.keys(campaigns).length > 5) {
+      await bot.sendMessage(
+        chatId,
+        `_Showing 5 most recent campaigns. You have ${Object.keys(campaigns).length} total campaigns._`,
+        { parse_mode: 'Markdown' }
+      );
+    }
 
   } catch (error) {
     logger.error('History error:', error);
-    await bot.sendMessage(chatId, '❌ Could not load trade history right now.');
+    await bot.sendMessage(chatId, '❌ Could not load transaction history right now.');
   }
 }
 

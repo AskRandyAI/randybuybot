@@ -1,4 +1,5 @@
 const commands = require('./commands');
+const admin = require('./admin-commands');
 const logger = require('../utils/logger');
 
 // User state management
@@ -13,6 +14,15 @@ function initializeBot(bot) {
     bot.onText(/\/cancel/, (msg) => commands.handleCancel(bot, msg, userStates));
     bot.onText(/\/history/, (msg) => commands.handleHistory(bot, msg));
     bot.onText(/\/help/, (msg) => commands.handleHelp(bot, msg));
+    // Admin commands
+    bot.onText(/\/admin_stats/, (msg) => admin.handleAdminStats(bot, msg));
+    bot.onText(/\/admin_campaigns/, (msg) => admin.handleAdminCampaigns(bot, msg));
+    bot.onText(/\/admin_user/, (msg) => admin.handleAdminUser(bot, msg));
+    bot.onText(/\/admin_errors/, (msg) => admin.handleAdminErrors(bot, msg));
+    bot.onText(/\/admin_logs/, (msg) => admin.handleAdminLogs(bot, msg));
+    bot.onText(/\/admin_pause/, (msg) => admin.handleAdminPause(bot, msg));
+    bot.onText(/\/admin_resume/, (msg) => admin.handleAdminResume(bot, msg));
+    bot.onText(/\/admin_fee/, (msg) => admin.handleAdminFee(bot, msg));
 
     // Handle user messages during campaign setup
     bot.on('message', async (msg) => {
@@ -59,6 +69,7 @@ function initializeBot(bot) {
             case 'history':
                 await commands.handleHistory(bot, msg);
                 break;
+            // Admin callbacks (if any) could be added here
             default:
                 // Handle dynamic data if needed
                 break;

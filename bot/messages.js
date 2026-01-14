@@ -47,13 +47,14 @@ function campaignSummary(campaignData, calc, interval) {
 🔹 *DEST:* \`${campaignData.destinationWallet.substring(0, 8)}...\`
 
 💰 *FINANCIALS*
-• Total Deposit: \`$${calc.totalDeposit.toFixed(2)}\`
-• Bot Fees: \`$${calc.totalFees.toFixed(2)}\`
-• Gas Reserve: \`$${calc.gasReserve.toFixed(2)}\`
-• Net Capital: \`$${calc.availableForBuys.toFixed(2)}\`
+• Total Deposit: \`$${(calc.totalDeposit || 0).toFixed(2)}\`
+• Bot Fees: \`$${(calc.totalFees || 0).toFixed(2)}\`
+• Gas Reserve: \`$${(calc.gasReserve || 0).toFixed(2)}\`
+• Net Capital: \`$${(calc.availableForBuys || 0).toFixed(2)}\`
 
 ⏰ *SCHEDULE*
-• Per Buy: \`$${calc.perBuyAmount.toFixed(2)}\`
+• Per Buy: \`$${(calc.perBuyAmount || 0).toFixed(2)}\`
+
 • Interval: \`Every ${interval}m\`
 • Total Buys: \`${campaignData.numberOfBuys}\`
 • Duration: \`~${hours}h ${minutes}m\`

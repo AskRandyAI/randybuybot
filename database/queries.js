@@ -229,6 +229,216 @@ async function updateNextBuyTime(campaignId, nextBuyTime) {
     }
 }
 
+// ===== NEW: Enhanced User History Queries =====
+
+// Get complete user history with all campaigns and transactions
+async function getUserFullHistory(telegramId) {
+    try {
+        const result = await pool.query(
+            `SELECT 
+                c.id as campaign_id,
+                c.token_address,
+                c.total_deposit_usd,
+                c.number_of_buys,
+                c.buys_completed,
+                c.status as campaign_status,
+                c.created_at as campaign_created,
+                c.completed_at,
+                c.deposit_signature,
+                b.id as buy_id,
+                b.swap_signature,
+                b.transfer_signature,
+                b.amount_usd,
+                b.amount_sol,
+                b.tokens_received,
+                b.fee_paid_sol,
+                b.status as buy_status,
+                b.executed_at,
+                b.error_message
+             FROM randybuybot_campaigns c
+             LEFT JOIN randybuybot_buys b ON c.id = b.campaign_id
+             WHERE c.telegram_id = $1
+             ORDER BY c.created_at DESC, b.executed_at DESC`,
+            [telegramId]
+        );
+        return result.rows;
+    } catch (error) {
+        logger.error('Error getting user full history:', error);
+        throw error;
+    }
+}
+
+// Get user statistics summary
+async function getUserStats(telegramId) {
+    try {
+        const result = await pool.query(
+            `SELECT 
+                COUNT(DISTINCT c.id) as total_campaigns,
+                COUNT(DISTINCT CASE WHEN c.status = 'active' THEN c.id END) as active_campaigns,
+                COUNT(DISTINCT CASE WHEN c.status = 'completed' THEN c.id END) as completed_campaigns,
+                COUNT(b.id) as total_buys,
+                COUNT(CASE WHEN b.status = 'success' THEN 1 END) as successful_buys,
+                COUNT(CASE WHEN b.status = 'failed' THEN 1 END) as failed_buys,
+                COALESCE(SUM(CASE WHEN b.status = 'success' THEN b.amount_usd END), 0) as total_spent_usd,
+                COALESCE(SUM(CASE WHEN b.status = 'success' THEN b.fee_paid_sol END), 0) as total_fees_sol
+             FROM randybuybot_campaigns c
+             LEFT JOIN randybuybot_buys b ON c.id = b.campaign_id
+             WHERE c.telegram_id = $1`,
+            [telegramId]
+        );
+        return result.rows[0];
+    } catch (error) {
+        logger.error('Error getting user stats:', error);
+        throw error;
+    }
+}
+
+// ===== NEW: Admin Queries =====
+
+// Get all users with their stats
+async function getAllUsers() {
+    try {
+        const result = await pool.query(
+            `SELECT 
+                u.telegram_id,
+                u.username,
+                u.destination_wallet,
+                u.created_at,
+                COUNT(DISTINCT c.id) as total_campaigns,
+                COUNT(b.id) as total_buys,
+                COALESCE(SUM(CASE WHEN b.status = 'success' THEN b.amount_usd END), 0) as total_volume_usd
+             FROM randybuybot_users u
+             LEFT JOIN randybuybot_campaigns c ON u.telegram_id = c.telegram_id
+             LEFT JOIN randybuybot_buys b ON c.id = b.campaign_id
+             GROUP BY u.telegram_id, u.username, u.destination_wallet, u.created_at
+             ORDER BY total_volume_usd DESC`
+        );
+        return result.rows;
+    } catch (error) {
+        logger.error('Error getting all users:', error);
+        throw error;
+    }
+}
+
+// Get system-wide statistics
+async function getSystemStats() {
+    try {
+        const result = await pool.query(
+            `SELECT 
+                (SELECT COUNT(*) FROM randybuybot_users) as total_users,
+                (SELECT COUNT(*) FROM randybuybot_campaigns WHERE status = 'active') as active_campaigns,
+                (SELECT COUNT(*) FROM randybuybot_campaigns WHERE status = 'awaiting_deposit') as pending_campaigns,
+                (SELECT COUNT(*) FROM randybuybot_campaigns WHERE status = 'completed') as completed_campaigns,
+                (SELECT COUNT(*) FROM randybuybot_buys WHERE status = 'success') as successful_buys,
+                (SELECT COUNT(*) FROM randybuybot_buys WHERE status = 'failed') as failed_buys,
+                (SELECT COALESCE(SUM(amount_usd), 0) FROM randybuybot_buys WHERE status = 'success') as total_volume_usd,
+                (SELECT COALESCE(SUM(fee_paid_sol), 0) FROM randybuybot_buys WHERE status = 'success') as total_fees_collected_sol,
+                (SELECT COALESCE(AVG(fee_paid_sol), 0) FROM randybuybot_buys WHERE status = 'success') as avg_gas_per_tx_sol`
+        );
+        return result.rows[0];
+    } catch (error) {
+        logger.error('Error getting system stats:', error);
+        throw error;
+    }
+}
+
+// Get recent errors
+async function getRecentErrors(limit = 20) {
+    try {
+        const result = await pool.query(
+            `SELECT 
+                b.id,
+                b.campaign_id,
+                c.telegram_id,
+                c.token_address,
+                b.amount_usd,
+                b.error_message,
+                b.executed_at
+             FROM randybuybot_buys b
+             JOIN randybuybot_campaigns c ON b.campaign_id = c.id
+             WHERE b.status = 'failed'
+             ORDER BY b.executed_at DESC
+             LIMIT $1`,
+            [limit]
+        );
+        return result.rows;
+    } catch (error) {
+        logger.error('Error getting recent errors:', error);
+        throw error;
+    }
+}
+
+// Update admin setting
+async function updateAdminSetting(key, value) {
+    try {
+        await pool.query(
+            `INSERT INTO randybuybot_admin_settings (key, value)
+             VALUES ($1, $2)
+             ON CONFLICT (key)
+             DO UPDATE SET value = $2, updated_at = NOW()`,
+            [key, value]
+        );
+    } catch (error) {
+        logger.error('Error updating admin setting:', error);
+        throw error;
+    }
+}
+
+// Pause all active campaigns
+async function pauseAllCampaigns() {
+    try {
+        const result = await pool.query(
+            `UPDATE randybuybot_campaigns
+             SET status = 'paused', updated_at = NOW()
+             WHERE status = 'active'
+             RETURNING id`
+        );
+        return result.rows.length;
+    } catch (error) {
+        logger.error('Error pausing campaigns:', error);
+        throw error;
+    }
+}
+
+// Resume all paused campaigns
+async function resumeAllCampaigns() {
+    try {
+        const result = await pool.query(
+            `UPDATE randybuybot_campaigns
+             SET status = 'active', updated_at = NOW()
+             WHERE status = 'paused'
+             RETURNING id`
+        );
+        return result.rows.length;
+    } catch (error) {
+        logger.error('Error resuming campaigns:', error);
+        throw error;
+    }
+}
+
+// Get all campaigns (for admin)
+async function getAllCampaigns(limit = 50) {
+    try {
+        const result = await pool.query(
+            `SELECT 
+                c.*,
+                u.username,
+                COUNT(b.id) as total_buys_executed
+             FROM randybuybot_campaigns c
+             JOIN randybuybot_users u ON c.telegram_id = u.telegram_id
+             LEFT JOIN randybuybot_buys b ON c.id = b.campaign_id
+             GROUP BY c.id, u.username
+             ORDER BY c.updated_at DESC
+             LIMIT $1`,
+            [limit]
+        );
+        return result.rows;
+    } catch (error) {
+        logger.error('Error getting all campaigns:', error);
+        throw error;
+    }
+}
+
 module.exports = {
     getOrCreateUser,
     createCampaign,
@@ -242,5 +452,15 @@ module.exports = {
     createBuy,
     updateCampaignProgress,
     getDueCampaigns,
-    updateNextBuyTime
+    updateNextBuyTime,
+    // New exports
+    getUserFullHistory,
+    getUserStats,
+    getAllUsers,
+    getSystemStats,
+    getRecentErrors,
+    updateAdminSetting,
+    pauseAllCampaigns,
+    resumeAllCampaigns,
+    getAllCampaigns
 };
