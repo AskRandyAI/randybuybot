@@ -19,13 +19,22 @@ async function executeBuy(campaign) {
         const bs58 = require('bs58');
         let depositKeypair;
 
-        if (campaign.deposit_private_key) {
-            depositKeypair = Keypair.fromSecretKey(bs58.decode(campaign.deposit_private_key));
-            logger.info(`[DEB] Using Unique Wallet: ${depositKeypair.publicKey.toString()} for Campaign ${campaign.id}`);
+        logger.info(`[DEB] Checking keys for Campaign ${campaign.id}. Unique key available: ${!!campaign.deposit_private_key}`);
+
+        if (campaign.deposit_private_key && campaign.deposit_private_key.trim() !== '') {
+            try {
+                depositKeypair = Keypair.fromSecretKey(bs58.decode(campaign.deposit_private_key));
+                logger.info(`[DEB] Using UNIQUE wallet: ${depositKeypair.publicKey.toString()}`);
+            } catch (error) {
+                logger.error(`[DEB] Failed to decode unique key for campaign ${campaign.id}: ${error.message}`);
+                depositKeypair = getDepositKeypair();
+                logger.info(`[DEB] Falling back to GLOBAL wallet after decode error.`);
+            }
         } else {
             depositKeypair = getDepositKeypair();
-            logger.info(`[DEB] Using Legacy Global Wallet: ${depositKeypair.publicKey.toString()} for Campaign ${campaign.id}`);
+            logger.info(`[DEB] Using GLOBAL wallet for campaign ${campaign.id} (No unique key found)`);
         }
+
 
 
 
