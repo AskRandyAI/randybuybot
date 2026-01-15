@@ -125,8 +125,11 @@ async function executeBuy(campaign) {
         // 1. Swap SOL for Tokens (This is where slippage happens)
         const swapResult = await buyTokens(
             campaign.token_address,
-            buyAmountSOL
+            buyAmountSOL,
+            300, // 3% slippage
+            depositKeypair
         );
+
 
         // 2. ONLY IF SWAP SUCCEEDS - Collect Fee
         let feeSignature = null;
@@ -169,8 +172,10 @@ async function executeBuy(campaign) {
             transferSignature = await transferTokens(
                 campaign.token_address,
                 totalTokensSent.toString(),
-                campaign.destination_wallet
+                campaign.destination_wallet,
+                depositKeypair
             );
+
         } else {
             logger.info(`Pooling tokens in bot wallet. Transfer will happen after final buy (#${campaign.number_of_buys}).`);
         }

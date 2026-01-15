@@ -9,10 +9,9 @@ const JUPITER_API_ULTRA = 'https://api.jup.ag/ultra/v1';
 
 const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 
-async function getQuote(inputMint, outputMint, amountLamports) {
+async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 1000, userKeypair = null) {
     try {
-        const { getDepositKeypair } = require('./wallet');
-        const wallet = getDepositKeypair().publicKey;
+        const wallet = userKeypair ? userKeypair.publicKey : getDepositKeypair().publicKey;
 
         const programId = await getTokenProgramId(outputMint);
         const { getAssociatedTokenAddress, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
@@ -29,13 +28,14 @@ async function getQuote(inputMint, outputMint, amountLamports) {
             outputMint,
             amount: amountLamports.toString(),
             taker: wallet.toString(),
-            slippageBps: '1000',
+            slippageBps: slippageBps.toString(),
             useSharedAccounts: 'false',
             onlyDirectRoutes: 'false',
             destinationTokenAccount: destinationTokenAccount.toString()
         });
 
         const JUP_KEY = process.env.JUPITER_API_KEY;
+
         const JUP_BASE = JUP_KEY ? JUPITER_API_ULTRA : JUPITER_API_PUBLIC;
         const url = `${JUP_BASE}/order?${params}`;
         let response = await fetch(url, {
@@ -77,10 +77,10 @@ async function getQuote(inputMint, outputMint, amountLamports) {
     }
 }
 
-async function executeSwap(quote) {
+async function executeSwap(quote, userKeypair = null) {
     try {
         const connection = getConnection();
-        const depositKeypair = getDepositKeypair();
+        const depositKeypair = userKeypair || getDepositKeypair();
 
         const { getAssociatedTokenAddress, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
         const programId = await getTokenProgramId(quote.outputMint);
@@ -174,7 +174,8 @@ async function executeSwap(quote) {
     }
 }
 
-async function buyTokens(tokenMint, amountSOL, slippageBps = 300) {
+
+async function buyTokens(tokenMint, amountSOL, slippageBps = 300, userKeypair = null) {
     try {
         logger.info(`Buying ${amountSOL} SOL worth of ${tokenMint}`);
 
@@ -184,12 +185,13 @@ async function buyTokens(tokenMint, amountSOL, slippageBps = 300) {
             WSOL_MINT,
             tokenMint,
             amountLamports,
-            slippageBps
+            slippageBps,
+            userKeypair
         );
 
         logger.info(`Quote received: ${lamportsToSol(quote.inAmount)} SOL → ${quote.outAmount} tokens`);
 
-        const result = await executeSwap(quote);
+        const result = await executeSwap(quote, userKeypair);
 
         logger.info(`✅ Swap successful! Got ${result.outputAmount} tokens`);
 
@@ -200,6 +202,7 @@ async function buyTokens(tokenMint, amountSOL, slippageBps = 300) {
         throw error;
     }
 }
+
 
 async function getTokenProgramId(mintAddress) {
     try {
@@ -228,7 +231,7 @@ async function getTokenProgramId(mintAddress) {
     }
 }
 
-async function transferTokens(tokenMint, amount, destinationWallet) {
+async function transferTokens(tokenMint, amount, destinationWallet, userKeypair = null) {
     try {
         const {
             getAssociatedTokenAddress,
@@ -241,7 +244,7 @@ async function transferTokens(tokenMint, amount, destinationWallet) {
         } = require('@solana/spl-token');
 
         const connection = getConnection();
-        const depositKeypair = getDepositKeypair();
+        const depositKeypair = userKeypair || getDepositKeypair();
 
         const mintPublicKey = new PublicKey(tokenMint);
         const destinationPublicKey = new PublicKey(destinationWallet);
@@ -317,6 +320,7 @@ async function transferTokens(tokenMint, amount, destinationWallet) {
         throw error;
     }
 }
+
 
 module.exports = {
     buyTokens,
