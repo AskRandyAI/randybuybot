@@ -349,11 +349,19 @@ async function handleStatus(bot, msg) {
 
     // Check if campaign is waiting for deposit
     if (campaign.status === 'awaiting_deposit') {
-      const { getConnection, lamportsToSol } = require('../blockchain/wallet');
+      const { getConnection, lamportsToSol, getDepositPublicKey } = require('../blockchain/wallet');
       const connection = getConnection();
-      const pubKey = new PublicKey(campaign.deposit_address);
+
+      let pubKey;
+      if (campaign.deposit_address) {
+        pubKey = new PublicKey(campaign.deposit_address);
+      } else {
+        pubKey = getDepositPublicKey();
+      }
+
       const balanceLamports = await connection.getBalance(pubKey);
       const balanceSOL = lamportsToSol(balanceLamports);
+
 
       if (balanceSOL >= parseFloat(campaign.expected_deposit_sol) * 0.5) {
         await db.updateCampaignStatus(campaign.id, 'active');

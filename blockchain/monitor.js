@@ -87,23 +87,25 @@ async function checkWalletBalanceForPendingCampaigns() {
         const connection = getConnection();
 
         for (const campaign of pendingCampaigns) {
-            // Check the balance of the UNIQUE wallet for this campaign
-            if (!campaign.deposit_address) {
-                logger.warn(`Campaign ${campaign.id} is awaiting deposit but has no unique address!`);
-                continue;
+            let pubKey;
+            if (campaign.deposit_address) {
+                pubKey = new PublicKey(campaign.deposit_address);
+            } else {
+                pubKey = getDepositPublicKey();
+                logger.info(`Campaign ${campaign.id} has no unique address, checking global wallet.`);
             }
 
-            const pubKey = new PublicKey(campaign.deposit_address);
             const balanceLamports = await connection.getBalance(pubKey);
             const balanceSOL = lamportsToSol(balanceLamports);
 
             const expected = parseFloat(campaign.expected_deposit_sol);
             // Allow 50% threshold for testing/flexibility (same as /status command)
             if (balanceSOL >= expected * 0.5) {
-                logger.info(`💰 Auto-Sweep: Campaign ${campaign.id} unique wallet balance (${balanceSOL}) covers expected (${expected}). Activating!`);
-                await activateCampaign(campaign, balanceSOL, 'AUTO_SWEEP_UNIQUE');
+                logger.info(`💰 Auto-Sweep: Wallet balance (${balanceSOL}) covers expected (${expected}) for campaign ${campaign.id}. Activating!`);
+                await activateCampaign(campaign, balanceSOL, 'AUTO_SWEEP_MATCH');
             }
         }
+
     } catch (error) {
         logger.error('Error in auto-sweep:', error);
     }

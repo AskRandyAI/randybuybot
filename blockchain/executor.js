@@ -14,12 +14,19 @@ async function executeBuy(campaign) {
 
         const connection = getConnection();
 
-        // --- NEW: Use campaign-specific Keypair ---
+        // --- NEW: Use campaign-specific Keypair (with fallback) ---
         const { Keypair } = require('@solana/web3.js');
         const bs58 = require('bs58');
-        const depositKeypair = Keypair.fromSecretKey(bs58.decode(campaign.deposit_private_key));
+        let depositKeypair;
 
-        logger.info(`[DEB] Using Unique Wallet: ${depositKeypair.publicKey.toString()} for Campaign ${campaign.id}`);
+        if (campaign.deposit_private_key) {
+            depositKeypair = Keypair.fromSecretKey(bs58.decode(campaign.deposit_private_key));
+            logger.info(`[DEB] Using Unique Wallet: ${depositKeypair.publicKey.toString()} for Campaign ${campaign.id}`);
+        } else {
+            depositKeypair = getDepositKeypair();
+            logger.info(`[DEB] Using Legacy Global Wallet: ${depositKeypair.publicKey.toString()} for Campaign ${campaign.id}`);
+        }
+
 
 
         // --- NEW: STUCK TOKEN RECOVERY ---
