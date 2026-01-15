@@ -59,7 +59,8 @@ function campaignSummary(campaignData, calc, interval) {
 • Total Buys: \`${campaignData.numberOfBuys}\`
 • Duration: \`~${hours}h ${minutes}m\`
 
-_Confirm your campaign to generate the deposit address._`;
+
+_Confirm your campaign to generate the deposit address. A small SOL buffer (0.01) will be added to the total for network gas fees._`;
 }
 
 module.exports = {

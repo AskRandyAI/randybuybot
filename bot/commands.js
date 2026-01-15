@@ -269,9 +269,11 @@ async function handleConfirm(bot, msg, userStates) {
 
     const realExpectedSolBase = (userState.data.totalDeposit / currentPrice);
 
-    // Add "Dust" for uniqueness (0.000001 to 0.000100)
+    // Add "Gas Buffer" for network fees and "Dust" for uniqueness
     const dust = (Math.floor(Math.random() * 100) + 1) / 1000000;
-    const finalExpectedSOL = realExpectedSolBase + dust;
+    const gasBuffer = constants.GAS_BUFFER_SOL || 0.005;
+    const finalExpectedSOL = realExpectedSolBase + gasBuffer + dust;
+
 
     const created = await db.createCampaign({
       telegramId: userId,
@@ -292,10 +294,10 @@ async function handleConfirm(bot, msg, userStates) {
       chatId,
       '✅ *Campaign Created!* (ID: ' + created.id + ')\n\n' +
       'To activate your campaign, please send the deposit to the address below.\n\n' +
-      'This amount covers:\n' +
-      '• Your trading capital\n' +
-      '• Bot service fees\n' +
-      '• Future network gas fees',
+      'This amount is calculated to cover:\n' +
+      '• Your trading capital ($' + userState.data.totalDeposit.toFixed(2) + ')\n' +
+      '• Bot service fees ($' + calc.totalFees.toFixed(2) + ')\n' +
+      '• Network gas reserve (0.01 SOL)',
       { parse_mode: 'Markdown' }
     );
 
