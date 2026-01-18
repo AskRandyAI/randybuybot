@@ -79,7 +79,7 @@ app.get('/api/user-data', async (req, res) => {
 });
 
 // Serve Dashboard
-app.get('*', (req, res) => {
+app.get('(.*)', (req, res) => {
     res.sendFile(path.join(__dirname, 'dashboard', 'index.html'));
 });
 
