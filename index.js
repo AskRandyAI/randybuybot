@@ -10,6 +10,11 @@ const path = require('path');
 const cors = require('cors');
 const db = require('./database/queries');
 const { getSolPrice } = require('./utils/price');
+const { Keypair } = require('@solana/web3.js');
+const bs58 = require('bs58');
+const calculator = require('./utils/calculator');
+const validator = require('./utils/validator');
+const constants = require('./config/constants');
 
 // Validate environment variables
 const requiredEnvVars = [
@@ -74,6 +79,96 @@ app.get('/api/user-data', async (req, res) => {
         });
     } catch (err) {
         logger.error('Dashboard API Error:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Create Campaign Endpoint
+app.post('/api/create-campaign', async (req, res) => {
+    try {
+        const { userId, username, destinationWallet, tokenAddress, totalDeposit, numberOfBuys, interval } = req.body;
+
+        // 1. Validate Input
+        if (!userId || !destinationWallet || !tokenAddress || !totalDeposit || !numberOfBuys || !interval) {
+            return res.status(400).json({ error: 'Missing fields' });
+        }
+
+        if (!validator.isValidSolanaAddress(destinationWallet)) {
+            return res.status(400).json({ error: 'Invalid destination wallet' });
+        }
+        if (!validator.isValidSolanaAddress(tokenAddress)) {
+            return res.status(400).json({ error: 'Invalid token address' });
+        }
+        if (totalDeposit < 5) return res.status(400).json({ error: 'Minimum deposit is $5' });
+
+        try {
+            validator.validateCampaign(totalDeposit, numberOfBuys);
+        } catch (e) {
+            return res.status(400).json({ error: e.message });
+        }
+
+        // 2. Check for existing active campaigns
+        const existing = await db.getActiveCampaign(userId);
+        if (existing) {
+            return res.status(400).json({ error: 'You already have an active campaign.' });
+        }
+
+        // 3. Create User if needed
+        await db.getOrCreateUser(userId, username, destinationWallet);
+
+        // 4. Calculate Logic
+        const calc = calculator.calculateCampaign(totalDeposit, numberOfBuys);
+        const currentPrice = await getSolPrice().catch(() => null);
+
+        if (!currentPrice) {
+            return res.status(500).json({ error: 'Could not fetch SOL price' });
+        }
+
+        // Generate Campaign Wallet
+        const newKeypair = Keypair.generate();
+        const depositAddress = newKeypair.publicKey.toString();
+        const depositPrivateKey = bs58.encode(newKeypair.secretKey);
+
+        // Calculate expected SOL
+        const realExpectedSolBase = (totalDeposit / currentPrice);
+        const dust = (Math.floor(Math.random() * 100) + 1) / 1000000;
+        const gasBuffer = constants.GAS_BUFFER_SOL || 0.005;
+        const finalExpectedSOL = realExpectedSolBase + gasBuffer + dust;
+
+        const campaignParams = {
+            telegramId: userId,
+            tokenAddress: tokenAddress,
+            destinationWallet: destinationWallet,
+            totalDeposit: totalDeposit,
+            numberOfBuys: numberOfBuys,
+            interval: interval,
+            totalFees: calc.totalFees,
+            perBuyAmount: calc.perBuyAmount,
+            expectedDepositSOL: finalExpectedSOL.toFixed(9),
+            depositAddress: depositAddress,
+            depositPrivateKey: depositPrivateKey
+        };
+
+        const created = await db.createCampaign(campaignParams);
+
+        // 5. Send Telegram Message
+        await bot.sendMessage(
+            userId,
+            '✅ *Campaign Created via Dashboard!* (ID: ' + created.id + ')\n\n' +
+            'Please send the EXACT amount below to activate it:\n\n' +
+            `👉 \`${created.expected_deposit_sol}\` *SOL*\n\n` +
+            `📍 *Address:* \`${depositAddress}\`\n\n` +
+            `_(Tap address to copy)_`,
+            { parse_mode: 'Markdown' }
+        );
+
+        // Also send just the address for easy copy
+        await bot.sendMessage(userId, `\`${depositAddress}\``, { parse_mode: 'Markdown' });
+
+        res.json({ success: true, campaignId: created.id });
+
+    } catch (err) {
+        logger.error('API Create Campaign Error:', err);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });

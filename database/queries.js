@@ -476,6 +476,23 @@ async function getAllCampaigns(limit = 50) {
     }
 }
 
+// Get user last destination wallet
+async function getUserLastDestinationWallet(telegramId) {
+    try {
+        const result = await pool.query(
+            `SELECT destination_wallet FROM randybuybot_campaigns
+             WHERE telegram_id = $1
+             ORDER BY created_at DESC
+             LIMIT 1`,
+            [telegramId]
+        );
+        return result.rows[0]?.destination_wallet || null;
+    } catch (error) {
+        logger.error('Error getting last destination wallet:', error);
+        throw error;
+    }
+}
+
 module.exports = {
     getOrCreateUser,
     createCampaign,
@@ -502,5 +519,6 @@ module.exports = {
     pauseAllCampaigns,
     resumeAllCampaigns,
     getAllCampaigns,
-    getUserActiveCampaigns
+    getUserActiveCampaigns,
+    getUserLastDestinationWallet
 };

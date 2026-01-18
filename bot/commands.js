@@ -46,12 +46,25 @@ async function handleNewCampaign(bot, msg, userStates) {
     data: {}
   });
 
+  const lastWallet = await db.getUserLastDestinationWallet(userId);
+  const keyboard = {
+    inline_keyboard: []
+  };
+
+  if (lastWallet) {
+    keyboard.inline_keyboard.push([{ text: `🏠 Use: ${lastWallet.substring(0, 10)}...${lastWallet.substring(34)}`, callback_data: `use_wallet_${lastWallet}` }]);
+  }
+  keyboard.inline_keyboard.push([{ text: '❌ Cancel', callback_data: 'cancel_campaign' }]);
+
   await bot.sendMessage(
     chatId,
-    '🎯 Let\'s set up your campaign!\n\n' +
-    'Step 1 of 5: What\'s your Solana wallet address?\n' +
-    '(This is where your purchased tokens will be sent)\n\n' +
-    'Type /cancel to abort'
+    '🎯 *Campaign Setup*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n' +
+    'Step 1 of 5: *Destination Wallet*\n' +
+    'Where should we send your purchased tokens?',
+    {
+      parse_mode: 'Markdown',
+      reply_markup: keyboard
+    }
   );
 }
 
@@ -81,9 +94,15 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
         userState.step = 'token_address';
         await bot.sendMessage(
           chatId,
-          '✅ Wallet saved!\n\n' +
-          'Step 2 of 5: What token do you want to buy?\n' +
-          'Paste the token contract address:'
+          '✅ *Wallet saved!*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n' +
+          'Step 2 of 5: *Token to Buy*\n' +
+          'Paste the Solana contract address of the token:',
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'cancel_campaign' }]]
+            }
+          }
         );
         break;
 
@@ -97,10 +116,22 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
         userState.step = 'total_deposit';
         await bot.sendMessage(
           chatId,
-          '✅ Token saved!\n\n' +
-          'Step 3 of 5: How much total do you want to deposit? (USD)\n' +
-          'Example: 100\n' +
-          'Minimum: $5'
+          '✅ *Token saved!*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n' +
+          'Step 3 of 5: *Total Deposit (USD)*\n' +
+          'How much do you want to spend in total?',
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '$50', callback_data: 'setup_amount_50' },
+                  { text: '$100', callback_data: 'setup_amount_100' },
+                  { text: '$500', callback_data: 'setup_amount_500' }
+                ],
+                [{ text: '❌ Cancel', callback_data: 'cancel_campaign' }]
+              ]
+            }
+          }
         );
         break;
 
@@ -124,9 +155,22 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
         userState.step = 'number_of_buys';
         await bot.sendMessage(
           chatId,
-          '✅ Amount saved!\n\n' +
-          'Step 4 of 5: How many buys?\n' +
-          'Example: 20'
+          '✅ *Amount saved!*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n' +
+          'Step 4 of 5: *Number of Buys*\n' +
+          'How many trades should the bot execute?',
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '10', callback_data: 'setup_buys_10' },
+                  { text: '25', callback_data: 'setup_buys_25' },
+                  { text: '50', callback_data: 'setup_buys_50' }
+                ],
+                [{ text: '❌ Cancel', callback_data: 'cancel_campaign' }]
+              ]
+            }
+          }
         );
         break;
 
@@ -148,10 +192,22 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
         userState.step = 'interval';
         await bot.sendMessage(
           chatId,
-          '✅ Number of buys saved!\n\n' +
-          'Step 5 of 5: Buy interval (minutes)?\n' +
-          `Minimum: ${MIN_INTERVAL_MINUTES} minutes\n` +
-          'Examples: 5, 10, 30, 60'
+          '✅ *Trades saved!*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n' +
+          'Step 5 of 5: *Buy Interval*\n' +
+          'How often should the bot buy?',
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '1h', callback_data: 'setup_interval_60' },
+                  { text: '4h', callback_data: 'setup_interval_240' },
+                  { text: '12h', callback_data: 'setup_interval_720' }
+                ],
+                [{ text: '❌ Cancel', callback_data: 'cancel_campaign' }]
+              ]
+            }
+          }
         );
 
         break;

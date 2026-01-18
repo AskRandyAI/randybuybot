@@ -36,6 +36,10 @@ function updateUI(data) {
     totalBuysEl.innerText = data.totalBuys || 0;
 
     // Update Campaigns
+    if (data.campaigns && data.campaigns.length > 0) {
+        window.lastWallet = data.campaigns[0].destination_wallet;
+    }
+
     if (!data.campaigns || data.campaigns.length === 0) {
         campaignList.innerHTML = `
             <div class="empty-state">
@@ -75,8 +79,75 @@ function updateUI(data) {
     }).join('');
 }
 
+const createView = document.getElementById('create-view');
+const closeCreateBtn = document.getElementById('close-create-btn');
+const createForm = document.getElementById('create-form');
+
+// Helper to update range inputs from chips
+window.setVal = (id, val) => {
+    document.getElementById(id).value = val;
+};
+
+// Toggle Create View
 createBtn.addEventListener('click', () => {
-    tg.close(); // Or send a message back to the bot
+    createView.classList.remove('hidden');
+    // Pre-fill logic if needed
+    const userId = tg.initDataUnsafe.user?.id || 'TEST';
+    if (window.lastWallet) {
+        document.getElementById('dest-wallet').value = window.lastWallet;
+        document.getElementById('wallet-hint').classList.remove('hidden');
+    }
+});
+
+closeCreateBtn.addEventListener('click', () => {
+    createView.classList.add('hidden');
+});
+
+// Submit Form
+createForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    const originalText = btn.innerText;
+    btn.innerText = 'Creating...';
+    btn.disabled = true;
+
+    const data = {
+        userId: tg.initDataUnsafe.user?.id,
+        username: tg.initDataUnsafe.user?.username,
+        destinationWallet: document.getElementById('dest-wallet').value,
+        tokenAddress: document.getElementById('token-address').value,
+        totalDeposit: parseFloat(document.getElementById('deposit-amount').value),
+        numberOfBuys: parseInt(document.getElementById('num-buys').value),
+        interval: parseInt(document.getElementById('interval').value)
+    };
+
+    try {
+        const res = await fetch('/api/create-campaign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const result = await res.json();
+
+        if (result.success) {
+            tg.showPopup({
+                title: 'Success!',
+                message: 'Campaign created. Check the bot chat for deposit address.',
+                buttons: [{ type: 'ok' }]
+            }, () => {
+                tg.close();
+            });
+        } else {
+            tg.showAlert(result.error || 'Failed to create campaign');
+            btn.innerText = originalText;
+            btn.disabled = false;
+        }
+    } catch (err) {
+        tg.showAlert('Network error occurred');
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
 });
 
 init();

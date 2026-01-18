@@ -71,7 +71,41 @@ function initializeBot(bot) {
                 break;
             // Admin callbacks (if any) could be added here
             default:
-                // Handle dynamic data if needed
+                // Handle dynamic callbacks (presets and saved wallet)
+                const userState = userStates.get(userId);
+
+                // Saved wallet button
+                if (data.startsWith('use_wallet_')) {
+                    const wallet = data.replace('use_wallet_', '');
+                    if (userState && userState.step === 'destination_wallet') {
+                        msg.text = wallet;
+                        await commands.handleCampaignSetupStep(bot, msg, userStates);
+                    }
+                }
+                // Amount presets
+                else if (data.startsWith('setup_amount_')) {
+                    const amount = data.replace('setup_amount_', '');
+                    if (userState && userState.step === 'total_deposit') {
+                        msg.text = amount;
+                        await commands.handleCampaignSetupStep(bot, msg, userStates);
+                    }
+                }
+                // Buys presets
+                else if (data.startsWith('setup_buys_')) {
+                    const buys = data.replace('setup_buys_', '');
+                    if (userState && userState.step === 'number_of_buys') {
+                        msg.text = buys;
+                        await commands.handleCampaignSetupStep(bot, msg, userStates);
+                    }
+                }
+                // Interval presets
+                else if (data.startsWith('setup_interval_')) {
+                    const interval = data.replace('setup_interval_', '');
+                    if (userState && userState.step === 'interval') {
+                        msg.text = interval;
+                        await commands.handleCampaignSetupStep(bot, msg, userStates);
+                    }
+                }
                 break;
         }
     });
