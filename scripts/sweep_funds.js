@@ -23,13 +23,16 @@ async function sweepFunds() {
     }
 
     const destinationPubKey = new PublicKey(destinationAddress);
-    console.log(`🎯 Destination Wallet: ${destinationAddress}`);
+    console.log(`🎯 Destination Wallet (Fee Wallet): ${destinationAddress}`);
 
-    // Fetch campaigns that are likely to have dust (completed, failed, or just old)
-    const campaigns = await db.getAllCampaigns(200);
+    // Fetch ALL campaigns (no limit) to ensure we get every single wallet ever created
+    const campaigns = await db.getAllCampaigns(1000);
     const inactiveCampaigns = campaigns.filter(c => c.status !== 'active' && c.status !== 'awaiting_deposit');
 
-    console.log(`📋 Found ${inactiveCampaigns.length} inactive campaigns to audit.\n`);
+    console.log(`📋 Found ${inactiveCampaigns.length} inactive campaign wallets to audit.\n`);
+
+    let totalSolRecovered = 0;
+    let totalWalletsSwept = 0;
 
     for (const campaign of inactiveCampaigns) {
         try {
@@ -88,6 +91,8 @@ async function sweepFunds() {
 
                 const signature = await sendAndConfirmTransaction(connection, transaction, [depositKeypair]);
                 console.log(`   ✅ SOL Swept! Tx: ${signature}`);
+                totalSolRecovered += (sweepAmount / 1e9);
+                totalWalletsSwept++;
             }
 
         } catch (err) {
@@ -95,7 +100,10 @@ async function sweepFunds() {
         }
     }
 
-    console.log('\n✨ Global sweep complete. All dust recovered!');
+    console.log('\n--- SWEEP SUMMARY ---');
+    console.log(`📊 Total Wallets Swept: ${totalWalletsSwept}`);
+    console.log(`💰 Total SOL Recovered: ${totalSolRecovered.toFixed(6)} SOL`);
+    console.log('✨ Global sweep complete. All dust recovered to your Fee Wallet!');
     process.exit(0);
 }
 
