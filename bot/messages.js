@@ -1,7 +1,7 @@
 const { FEE_PER_BUY_USD } = require('../config/constants');
 
 function welcomeMessage() {
-    return `🚀 *WELCOME TO RANDYBUYBOT*
+    return `🚀 *WELCOME TO SOLSTICE BUY BOT*
 ━━━━━━━━━━━━━━━━━━━━━━━
 
 The most secure & efficient way to DCA into Solana gems. Your private keys are never exposed, and tokens go straight to your wallet.

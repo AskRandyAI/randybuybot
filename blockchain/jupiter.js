@@ -42,7 +42,7 @@ async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 100
 
         let response = await fetch(url, {
             headers: {
-                'User-Agent': 'RandyBuyBot/1.0',
+                'User-Agent': 'SolsticeBuyBot/1.0',
                 'x-api-key': JUP_KEY || ''
             }
         });

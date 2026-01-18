@@ -24,7 +24,7 @@ for (const envVar of requiredEnvVars) {
 // Initialize Telegram Bot
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 
-logger.info('🤖 RandyBuyBot starting...');
+logger.info('🤖 Solstice Buy Bot starting...');
 
 // Initialize bot handlers
 initializeBot(bot);
