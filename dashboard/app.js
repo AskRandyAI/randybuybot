@@ -91,11 +91,23 @@ window.setVal = (id, val) => {
 // Toggle Create View
 createBtn.addEventListener('click', () => {
     createView.classList.remove('hidden');
-    // Pre-fill logic if needed
+    // Pre-fill logic
     const userId = tg.initDataUnsafe.user?.id || 'TEST';
     if (window.lastWallet) {
-        document.getElementById('dest-wallet').value = window.lastWallet;
-        document.getElementById('wallet-hint').classList.remove('hidden');
+        // Show "Use Saved Wallet" chip, do NOT auto-fill input to avoid confusion
+        document.getElementById('wallet-chip-container').classList.remove('hidden');
+        document.getElementById('saved-wallet-preview').innerText =
+            window.lastWallet.substring(0, 6) + '...' + window.lastWallet.substring(window.lastWallet.length - 4);
+
+        // Bind chip click
+        document.getElementById('use-saved-wallet-btn').onclick = () => {
+            document.getElementById('dest-wallet').value = window.lastWallet;
+            // Visual feedback
+            document.getElementById('dest-wallet').style.borderColor = 'var(--secondary)';
+            setTimeout(() => {
+                document.getElementById('dest-wallet').style.borderColor = 'var(--glass-border)';
+            }, 500);
+        };
     }
 });
 

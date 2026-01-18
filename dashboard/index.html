@@ -58,24 +58,44 @@
 
             <form id="create-form">
                 <div class="form-group">
-                    <label>Destination Wallet</label>
-                    <input type="text" id="dest-wallet" placeholder="Where tokens go..." required>
-                    <small id="wallet-hint" class="hint hidden">Last used wallet found!</small>
+                    <label>Destination Wallet <span
+                            style="font-weight: 400; font-size: 0.75rem; color: var(--secondary); float: right;">(Your
+                            Personal Wallet)</span></label>
+                    <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px;">
+                        Paste the Solana address where you want to receive your purchased tokens.
+                    </p>
+                    <input type="text" id="dest-wallet" placeholder="e.g. 5K3s... or paste address" required>
+                    <div id="wallet-chip-container" class="hidden" style="margin-top: 8px;">
+                        <button type="button" class="chip" id="use-saved-wallet-btn"
+                            style="width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center;">
+                            <span>🏠 Use Last Wallet: <span id="saved-wallet-preview"
+                                    style="color: var(--secondary);">...</span></span>
+                            <span style="font-size: 1.2rem;">&darr;</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="form-group">
                     <label>Token Address</label>
-                    <input type="text" id="token-address" placeholder="Solana Token Address" required>
+                    <input type="text" id="token-address" placeholder="e.g. 6D8q... (Solana CA)" required>
                 </div>
 
                 <div class="form-group">
                     <label>Total Deposit (USD)</label>
                     <div class="range-wrapper">
-                        <input type="number" id="deposit-amount" placeholder="100" min="5" value="100">
-                        <div class="presets">
+                        <input type="number" id="deposit-amount" placeholder="Custom Amount" min="5" value="100">
+                        <div class="presets-grid">
+                            <button type="button" class="chip" onclick="setVal('deposit-amount', 5)">$5</button>
+                            <button type="button" class="chip" onclick="setVal('deposit-amount', 10)">$10</button>
+                            <button type="button" class="chip" onclick="setVal('deposit-amount', 15)">$15</button>
+                            <button type="button" class="chip" onclick="setVal('deposit-amount', 20)">$20</button>
+                            <button type="button" class="chip" onclick="setVal('deposit-amount', 25)">$25</button>
+                            <button type="button" class="chip" onclick="setVal('deposit-amount', 30)">$30</button>
                             <button type="button" class="chip" onclick="setVal('deposit-amount', 50)">$50</button>
+                            <button type="button" class="chip" onclick="setVal('deposit-amount', 75)">$75</button>
                             <button type="button" class="chip" onclick="setVal('deposit-amount', 100)">$100</button>
-                            <button type="button" class="chip" onclick="setVal('deposit-amount', 500)">$500</button>
+                            <button type="button" class="chip" onclick="setVal('deposit-amount', 150)">$150</button>
+                            <button type="button" class="chip" onclick="setVal('deposit-amount', 200)">$200</button>
                         </div>
                     </div>
                 </div>

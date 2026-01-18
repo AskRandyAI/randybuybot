@@ -51,6 +51,28 @@ header {
     -webkit-text-fill-color: transparent;
 }
 
+.presets-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+.chip {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    flex-grow: 1;
+    text-align: center;
+    transition: all 0.2s;
+    min-width: 50px;
+}
+
 .stats-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
