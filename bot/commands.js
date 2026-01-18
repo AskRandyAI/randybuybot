@@ -16,9 +16,9 @@ async function handleStart(bot, msg) {
   await bot.sendMessage(chatId, messages.welcomeMessage(), {
     reply_markup: {
       inline_keyboard: [
-        [{ text: '📱 Open Solstice Dashboard', web_app: { url: process.env.DASHBOARD_URL || 'https://google.com' } }],
         [{ text: '🚀 New Campaign', callback_data: 'new_campaign' }],
-        [{ text: '📊 Status', callback_data: 'status' }, { text: '📜 History', callback_data: 'history' }],
+        [{ text: '📊 Status', callback_data: 'status' }],
+        [{ text: '📜 History', callback_data: 'history' }],
         [{ text: '❓ Help', callback_data: 'help' }]
       ]
     }
@@ -417,7 +417,11 @@ async function handleConfirm(bot, msg, userStates) {
       {
         parse_mode: 'Markdown',
         reply_markup: {
-          inline_keyboard: [[{ text: '📊 Check Status', callback_data: 'status' }]]
+          inline_keyboard: [
+            [{ text: '📊 Check Status', callback_data: 'status' }],
+            [{ text: '🚀 Start Another', callback_data: 'new_campaign' }],
+            [{ text: '🏠 Main Menu', callback_data: 'help' }]
+          ]
         }
       }
     );
@@ -525,7 +529,8 @@ async function handleStatus(bot, msg) {
           inline_keyboard: [
             [{ text: '🔄 Refresh Status', callback_data: 'status' }],
             [{ text: '📜 Trade History', callback_data: 'history' }],
-            [{ text: '❌ Cancel Campaign', callback_data: 'cancel' }]
+            [{ text: '❌ Cancel Campaign', callback_data: 'cancel' }],
+            [{ text: '🏠 Main Menu', callback_data: 'help' }]
           ]
         }
       }
@@ -586,7 +591,12 @@ async function handleHistory(bot, msg) {
     message += `   • Total Spent: \`$${parseFloat(stats.total_spent_usd).toFixed(2)}\`\n`;
     message += `   • Gas Fees: \`${parseFloat(stats.total_fees_sol).toFixed(4)} SOL\`\n\n`;
 
-    await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, message, {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [[{ text: '🏠 Main Menu', callback_data: 'help' }]]
+      }
+    });
 
     // Group transactions by campaign
     const campaigns = {};

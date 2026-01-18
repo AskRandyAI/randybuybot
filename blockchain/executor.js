@@ -8,6 +8,17 @@ const logger = require('../utils/logger');
 const { FEE_PER_BUY_USD } = require('../config/constants');
 const notifications = require('../notifications/telegram');
 
+// [DIAGNOSTIC] Check imports
+if (typeof buyTokens !== 'function') {
+    console.error('[CRITICAL] buyTokens is NOT a function in executor.js!');
+    try {
+        const jup = require('./jupiter');
+        console.error('[CRITICAL] jupiter exports:', Object.keys(jup));
+    } catch (e) { console.error('Error re-requiring jupiter:', e); }
+} else {
+    console.log('[DIAG] buyTokens imported successfully in executor.js');
+}
+
 async function executeBuy(campaign) {
     try {
         logger.info(`Executing buy for campaign ${campaign.id}`);
