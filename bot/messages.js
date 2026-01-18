@@ -1,7 +1,7 @@
 const { FEE_PER_BUY_USD } = require('../config/constants');
 
 function welcomeMessage() {
-    return `🚀 *Welcome to RandyBuyBot v2.0*
+    return `🚀 *WELCOME TO RANDYBUYBOT*
 ━━━━━━━━━━━━━━━━━━━━━━━
 
 The most secure & efficient way to DCA into Solana gems. Your private keys are never exposed, and tokens go straight to your wallet.
@@ -16,7 +16,7 @@ The most secure & efficient way to DCA into Solana gems. Your private keys are n
 }
 
 function helpMessage() {
-    return `📚 *COMMAND CENTER*
+    return `📚 * COMMAND CENTER *
 ━━━━━━━━━━━━━━━━━━━━━━━
 
 🚀 /newcampaign \- Start a new DCA run
@@ -24,7 +24,7 @@ function helpMessage() {
 📜 /history \- View past trade performance
 ❌ /cancel \- Stop campaign & refund
 
-📈 *Fees:* \`$${FEE_PER_BUY_USD}\` per buy
+📈 * Fees:* \`$${FEE_PER_BUY_USD}\` per buy
 `;
 }
 

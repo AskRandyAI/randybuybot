@@ -7,7 +7,10 @@ const JUPITER_PRICE_API = 'https://api.jup.ag/price/v2/full?ids=So11111111111111
 async function getSolPrice() {
     try {
         const response = await fetch(JUPITER_PRICE_API, {
-            headers: { 'User-Agent': 'RandyBuyBot/1.0' }
+            headers: {
+                'User-Agent': 'RandyBuyBot/1.0',
+                'x-api-key': process.env.JUPITER_API_KEY || ''
+            }
         });
         if (!response.ok) {
             const errorText = await response.text();

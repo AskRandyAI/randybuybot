@@ -3,8 +3,8 @@ const fetch = require('node-fetch');
 const { getConnection, getDepositKeypair, lamportsToSol, solToLamports } = require('./wallet');
 const logger = require('../utils/logger');
 
-const JUPITER_API_PUBLIC = 'https://public.jupiterapi.com';
-const JUPITER_API_V6 = 'https://quote-api.jup.ag/v6';
+const JUPITER_API_PUBLIC = 'https://api.jup.ag';
+const JUPITER_API_V6 = 'https://api.jup.ag/v6';
 const JUPITER_API_ULTRA = 'https://api.jup.ag/ultra/v1';
 
 const WSOL_MINT = 'So11111111111111111111111111111111111111112';
@@ -111,7 +111,7 @@ async function executeSwap(quote, userKeypair = null) {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'User-Agent': 'RandyBuyBot/1.0',
+                    'User-Agent': 'VelocityDCA/1.0',
                     'x-api-key': JUPITER_API_KEY
                 },
                 body: JSON.stringify({

@@ -56,19 +56,25 @@ async function executeBuy(campaign) {
             const account = await getAccount(connection, ata, 'confirmed', programId);
 
             if (account && account.amount > 0n) {
-                logger.info(`📦 Found ${account.amount.toString()} stuck tokens (${programId.toString()}). Attempting transfer...`);
-                const transferSignature = await transferTokens(
-                    campaign.token_address,
-                    account.amount.toString(),
-                    campaign.destination_wallet
-                );
-
-                await updateDatabaseAfterSuccess(campaign, 'RECOVERED_SIG', transferSignature, campaign.per_buy_usd, 0, account.amount, 0);
-                return { success: true, recovered: true };
+                // Check if we have SOL for gas to transfer
+                const balance = await connection.getBalance(depositKeypair.publicKey);
+                if (balance < 0.001 * 1e9) {
+                    logger.warn(`[DIAG-RECOVERY] Stuck tokens found (${account.amount.toString()}) but insufficient SOL for gas to recover them yet.`);
+                } else {
+                    logger.info(`📦 Found ${account.amount.toString()} stuck tokens. Attempting transfer...`);
+                    const transferSignature = await transferTokens(
+                        campaign.token_address,
+                        account.amount.toString(),
+                        campaign.destination_wallet,
+                        depositKeypair
+                    );
+                    await updateDatabaseAfterSuccess(campaign, 'RECOVERED_SIG', transferSignature, campaign.per_buy_usd, 0, account.amount, 0);
+                    return { success: true, recovered: true };
+                }
             }
         } catch (e) {
-            // Account likely doesn't exist, which is fine, proceed to normal buy.
-            logger.debug('No stuck tokens found or account missing.');
+            // Account likely doesn't exist or insufficient gas for transfer
+            logger.warn(`[DIAG-RECOVERY] Stuck token recovery skipped/failed: ${e.message}`);
         }
 
         // --- PRE-INITIALIZE ATA ---
