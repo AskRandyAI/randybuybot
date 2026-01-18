@@ -556,10 +556,29 @@ async function handleCancel(bot, msg, userStates) {
     const activeCampaign = await db.getActiveCampaign(userId);
     if (activeCampaign) {
       await db.updateCampaignStatus(activeCampaign.id, 'cancelled');
-      extraMsg = `✅ *Campaign #${activeCampaign.id} has been stopped.*\n` +
+
+      // Automatic Refund Logic
+      const { refundSOL } = require('../blockchain/executor');
+      let refundMsg = '💰 *Funds:* Any unspent SOL remains in your deposit wallet.';
+
+      const refundResult = await refundSOL(activeCampaign);
+      if (refundResult.success) {
+        refundMsg = `♻️ *Refund Initiated!*\n` +
+          `Checking out: \`${refundResult.amountSol.toFixed(4)} SOL\`\n` +
+          `To: \`${activeCampaign.destination_wallet.substring(0, 6)}...${activeCampaign.destination_wallet.slice(-4)}\`\n` +
+          `Tx: \`${refundResult.signature.substring(0, 12)}...\``;
+      } else {
+        if (refundResult.reason === 'Zero Balance') {
+          refundMsg = `💰 *Refund:* Wallet is empty or balance too low for gas.`;
+        } else {
+          refundMsg = `⚠️ *Refund Failed:* ${refundResult.error}\n` +
+            `Your funds are safe in the deposit wallet. Import key to withdraw manually.`;
+        }
+      }
+
+      extraMsg = `✅ *Campaign #${activeCampaign.id} stopped.*\n` +
         `Status: \`${activeCampaign.status.toUpperCase()} ➡️ CANCELLED\`\n\n` +
-        `💰 *Funds:* Any unspent SOL remains in your deposit wallet.\n` +
-        `🔑 *Key:* You can import your deposit private key into Phantom to withdraw.`;
+        refundMsg;
     }
   } catch (err) {
     logger.error('Error cancelling campaign:', err);

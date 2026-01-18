@@ -281,5 +281,57 @@ async function updateDatabaseAfterSuccess(campaign, swapSig, transferSig, usd, s
 }
 
 module.exports = {
-    executeBuy
+    executeBuy,
+    refundSOL
 };
+
+async function refundSOL(campaign) {
+    try {
+        const connection = getConnection();
+        const { Keypair, SystemProgram, Transaction, PublicKey } = require('@solana/web3.js');
+        const bs58 = require('bs58');
+        const { getDepositKeypair } = require('./wallet');
+
+        logger.info(`Processing refund for campaign ${campaign.id}`);
+
+        let depositKeypair;
+        if (campaign.deposit_private_key) {
+            try {
+                depositKeypair = Keypair.fromSecretKey(bs58.decode(campaign.deposit_private_key));
+            } catch (e) {
+                logger.error(`Failed to decode key for refund ${campaign.id}, fallback to global.`);
+                depositKeypair = getDepositKeypair();
+            }
+        } else {
+            depositKeypair = getDepositKeypair();
+        }
+
+        const balance = await connection.getBalance(depositKeypair.publicKey);
+        const gasBuffer = 0.000005 * 1e9; // 5000 lamports for fee
+
+        if (balance <= gasBuffer) {
+            logger.info(`Balance too low for refund: ${balance} lamports.`);
+            return { success: false, reason: 'Zero Balance' };
+        }
+
+        const refundAmount = balance - gasBuffer;
+
+        const transaction = new Transaction().add(
+            SystemProgram.transfer({
+                fromPubkey: depositKeypair.publicKey,
+                toPubkey: new PublicKey(campaign.destination_wallet),
+                lamports: Math.floor(refundAmount)
+            })
+        );
+
+        const signature = await connection.sendTransaction(transaction, [depositKeypair]);
+        await connection.confirmTransaction(signature, 'confirmed');
+
+        logger.info(`✅ Refund success: ${signature}`);
+        return { success: true, signature, amountSol: refundAmount / 1e9 };
+
+    } catch (error) {
+        logger.error(`Refund failed for campaign ${campaign.id}:`, error);
+        return { success: false, error: error.message };
+    }
+}
