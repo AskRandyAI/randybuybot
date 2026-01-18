@@ -76,8 +76,13 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Token Address</label>
+                    <label>Token Address <span
+                            style="font-weight: 400; font-size: 0.75rem; color: var(--secondary); float: right;">(Saved
+                            Tokens)</span></label>
                     <input type="text" id="token-address" placeholder="e.g. 6D8q... (Solana CA)" required>
+                    <div id="saved-tokens-container" class="presets-grid hidden" style="justify-content: flex-start;">
+                        <!-- Filter chips injected by JS -->
+                    </div>
                 </div>
 
                 <div class="form-group">

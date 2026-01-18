@@ -65,17 +65,19 @@ app.get('/api/user-data', async (req, res) => {
         const { userId } = req.query;
         if (!userId) return res.status(400).json({ error: 'Missing userId' });
 
-        const [stats, campaigns, solPrice] = await Promise.all([
+        const [stats, campaigns, solPrice, recentTokens] = await Promise.all([
             db.getUserStats(userId),
             db.getUserActiveCampaigns(userId),
-            getSolPrice()
+            getSolPrice(),
+            db.getUserRecentTokens(userId)
         ]);
 
         res.json({
             solPrice,
             totalManaged: stats ? parseFloat(stats.total_spent_usd) : 0,
             totalBuys: stats ? parseInt(stats.total_buys) : 0,
-            campaigns: campaigns || []
+            campaigns: campaigns || [],
+            recentTokens: recentTokens || []
         });
     } catch (err) {
         logger.error('Dashboard API Error:', err);

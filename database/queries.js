@@ -520,5 +520,6 @@ module.exports = {
     resumeAllCampaigns,
     getAllCampaigns,
     getUserActiveCampaigns,
-    getUserLastDestinationWallet
+    getUserLastDestinationWallet,
+    getUserRecentTokens
 };

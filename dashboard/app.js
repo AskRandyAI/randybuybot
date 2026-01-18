@@ -39,6 +39,9 @@ function updateUI(data) {
     if (data.campaigns && data.campaigns.length > 0) {
         window.lastWallet = data.campaigns[0].destination_wallet;
     }
+    if (data.recentTokens) {
+        window.recentTokens = data.recentTokens;
+    }
 
     if (!data.campaigns || data.campaigns.length === 0) {
         campaignList.innerHTML = `
@@ -108,6 +111,31 @@ createBtn.addEventListener('click', () => {
                 document.getElementById('dest-wallet').style.borderColor = 'var(--glass-border)';
             }, 500);
         };
+    }
+
+    // Populate Saved Tokens
+    const tokenContainer = document.getElementById('saved-tokens-container');
+    tokenContainer.innerHTML = '';
+
+    if (window.recentTokens && window.recentTokens.length > 0) {
+        tokenContainer.classList.remove('hidden');
+        window.recentTokens.forEach(token => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'chip';
+            btn.innerText = token.substring(0, 4) + '...' + token.substring(token.length - 4);
+            btn.onclick = () => {
+                document.getElementById('token-address').value = token;
+                // Visual feedback
+                document.getElementById('token-address').style.borderColor = 'var(--secondary)';
+                setTimeout(() => {
+                    document.getElementById('token-address').style.borderColor = 'var(--glass-border)';
+                }, 500);
+            };
+            tokenContainer.appendChild(btn);
+        });
+    } else {
+        tokenContainer.classList.add('hidden');
     }
 });
 
