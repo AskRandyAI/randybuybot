@@ -546,12 +546,29 @@ async function handleCancel(bot, msg, userStates) {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
 
-  // Clear setup state
+  // 1. Clear setup state (if any)
+  const wasSettingUp = userStates.has(userId);
   userStates.delete(userId);
+
+  // 2. Check for active campaign to cancel (DB)
+  let extraMsg = '';
+  try {
+    const activeCampaign = await db.getActiveCampaign(userId);
+    if (activeCampaign) {
+      await db.updateCampaignStatus(activeCampaign.id, 'cancelled');
+      extraMsg = `✅ *Campaign #${activeCampaign.id} has been stopped.*\n` +
+        `Status: \`${activeCampaign.status.toUpperCase()} ➡️ CANCELLED\`\n\n` +
+        `💰 *Funds:* Any unspent SOL remains in your deposit wallet.\n` +
+        `🔑 *Key:* You can import your deposit private key into Phantom to withdraw.`;
+    }
+  } catch (err) {
+    logger.error('Error cancelling campaign:', err);
+    extraMsg = '⚠️ Error updating campaign status in database.';
+  }
 
   await bot.sendMessage(
     chatId,
-    '🚫 *Operation Cancelled*\n\nWhat would you like to do next?',
+    '🚫 *Operation Cancelled*\n\n' + extraMsg + '\n\nWhat would you like to do next?',
     {
       parse_mode: 'Markdown',
       reply_markup: {

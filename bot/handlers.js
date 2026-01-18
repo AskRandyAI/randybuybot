@@ -64,6 +64,7 @@ function initializeBot(bot) {
                 await commands.handleConfirm(bot, msg, userStates);
                 break;
             case 'cancel_campaign':
+            case 'cancel':  // Add this line
                 await commands.handleCancel(bot, msg, userStates);
                 break;
             case 'history':
