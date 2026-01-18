@@ -79,7 +79,9 @@ app.get('/api/user-data', async (req, res) => {
 });
 
 // Serve Dashboard
-app.get('(.*)', (req, res) => {
+app.use((req, res, next) => {
+    // Basic API health check or skip files that don't exist
+    if (req.path.startsWith('/api')) return next();
     res.sendFile(path.join(__dirname, 'dashboard', 'index.html'));
 });
 
