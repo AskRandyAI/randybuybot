@@ -120,17 +120,56 @@
 
                 <div class="form-group">
                     <label>Buy Interval (Minutes)</label>
-                    <select id="interval">
-                        <option value="60">1 Hour</option>
-                        <option value="240">4 Hours</option>
-                        <option value="720">12 Hours</option>
-                        <option value="1440">24 Hours</option>
-                        <option value="5">Turbo (5 mins)</option>
-                    </select>
+                    <div class="range-wrapper">
+                        <input type="number" id="interval" placeholder="Custom Minutes" min="1" value="5">
+                        <div class="presets-grid">
+                            <button type="button" class="chip" onclick="setVal('interval', 1)">1m</button>
+                            <button type="button" class="chip" onclick="setVal('interval', 5)">5m</button>
+                            <button type="button" class="chip" onclick="setVal('interval', 10)">10m</button>
+                            <button type="button" class="chip" onclick="setVal('interval', 15)">15m</button>
+                            <button type="button" class="chip" onclick="setVal('interval', 20)">20m</button>
+                        </div>
+                    </div>
                 </div>
 
-                <button type="submit" class="btn-submit">CREATE CAMPAIGN</button>
+                <div class="form-group" style="margin-top: 24px;">
+                    <button type="submit" id="submit-btn" class="btn-primary">START CAMPAIGN</button>
+                </div>
             </form>
+
+            <div class="faq-section"
+                style="margin-top: 40px; padding: 20px; background: rgba(255,255,255,0.03); border-radius: 16px;">
+                <h3 style="margin-bottom: 20px; font-size: 1.2rem; color: var(--secondary); text-align: center;">
+                    Frequently Asked Questions</h3>
+
+                <div class="faq-item" style="margin-bottom: 15px;">
+                    <h4 style="font-size: 0.95rem; margin-bottom: 5px; color: #fff;">🔒 Is my deposit safe?</h4>
+                    <p style="font-size: 0.85rem; color: var(--text-dim);">Yes. Each campaign creates a unique,
+                        dedicated wallet. Your funds are only used for the buys you schedule. The bot does not have
+                        access to your personal main wallet.</p>
+                </div>
+
+                <div class="faq-item" style="margin-bottom: 15px;">
+                    <h4 style="font-size: 0.95rem; margin-bottom: 5px; color: #fff;">🧹 What is "Sweeping"?</h4>
+                    <p style="font-size: 0.85rem; color: var(--text-dim);">After your campaign finishes (or if you
+                        cancel it), all purchased tokens are automatically transferred ("swept") to your destination
+                        wallet in one batch to save on gas fees.</p>
+                </div>
+
+                <div class="faq-item" style="margin-bottom: 15px;">
+                    <h4 style="font-size: 0.95rem; margin-bottom: 5px; color: #fff;">💸 Can I get a refund?</h4>
+                    <p style="font-size: 0.85rem; color: var(--text-dim);">Absolutely. If you cancel a campaign mid-way,
+                        any unspent SOL remains in the campaign wallet. You can use the <code>/help</code> command in
+                        the bot to find the withdraw option to retrieve unspent funds.</p>
+                </div>
+
+                <div class="faq-item">
+                    <h4 style="font-size: 0.95rem; margin-bottom: 5px; color: #fff;">⏱️ What is the minimum interval?
+                    </h4>
+                    <p style="font-size: 0.85rem; color: var(--text-dim);">The bot can execute trades as fast as every 1
+                        minute.</p>
+                </div>
+            </div>
         </section>
     </div>
 

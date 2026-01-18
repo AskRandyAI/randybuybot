@@ -75,6 +75,9 @@ function initializeBot(bot) {
             case 'enter_custom_amount':
                 await bot.sendMessage(chatId, '📝 *Enter Custom Amount*\n\nPlease type the total deposit amount in USD (e.g., 500):', { parse_mode: 'Markdown' });
                 break;
+            case 'enter_custom_interval':
+                await bot.sendMessage(chatId, '📝 *Enter Custom Interval*\n\nPlease type the buy interval in minutes (e.g., 45):', { parse_mode: 'Markdown' });
+                break;
             // Admin callbacks (if any) could be added here
             default:
                 // Handle dynamic callbacks (presets and saved wallet)

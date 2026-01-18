@@ -226,14 +226,23 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
           {
             parse_mode: 'Markdown',
             reply_markup: {
-              inline_keyboard: [
-                [
-                  { text: '1h', callback_data: 'setup_interval_60' },
-                  { text: '4h', callback_data: 'setup_interval_240' },
-                  { text: '12h', callback_data: 'setup_interval_720' }
-                ],
-                [{ text: '❌ Cancel', callback_data: 'cancel_campaign' }]
-              ]
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: '1m', callback_data: 'setup_interval_1' },
+                    { text: '5m', callback_data: 'setup_interval_5' },
+                    { text: '10m', callback_data: 'setup_interval_10' }
+                  ],
+                  [
+                    { text: '15m', callback_data: 'setup_interval_15' },
+                    { text: '20m', callback_data: 'setup_interval_20' }
+                  ],
+                  [
+                    { text: '⌨️ Other', callback_data: 'enter_custom_interval' },
+                    { text: '❌ Cancel', callback_data: 'cancel_campaign' }
+                  ]
+                ]
+              }
             }
           }
         );
