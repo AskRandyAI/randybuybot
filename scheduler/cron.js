@@ -10,13 +10,24 @@ function startBuyScheduler() {
         logger.warn('Buy scheduler already running');
         return;
     }
-    
+
     logger.info('⏰ Starting buy scheduler...');
-    
+
+    // Check for buys every minute
     schedulerTask = cron.schedule('* * * * *', async () => {
         await checkForDueBuys();
     });
-    
+
+    // Sweep dust daily at midnight
+    cron.schedule('0 0 * * *', async () => {
+        try {
+            const { sweepDust } = require('../blockchain/sweeper');
+            await sweepDust();
+        } catch (e) {
+            logger.error('Daily sweep failed:', e);
+        }
+    });
+
     logger.info('✅ Buy scheduler started');
 }
 
@@ -31,17 +42,17 @@ function stopBuyScheduler() {
 async function checkForDueBuys() {
     try {
         const dueCampaigns = await db.getDueCampaigns();
-        
+
         if (dueCampaigns.length === 0) {
             return;
         }
-        
+
         logger.info(`Found ${dueCampaigns.length} campaigns with buys due`);
-        
+
         for (const campaign of dueCampaigns) {
             await processCampaignBuy(campaign);
         }
-        
+
     } catch (error) {
         logger.error('Error checking for due buys:', error);
     }
@@ -50,12 +61,12 @@ async function checkForDueBuys() {
 async function processCampaignBuy(campaign) {
     try {
         logger.info(`Processing buy for campaign ${campaign.id}`);
-        
+
         const result = await executeBuy(campaign);
-        
+
         if (result.success) {
             logger.info(`✅ Buy successful for campaign ${campaign.id}`);
-            
+
             if (!result.isComplete) {
                 const nextBuyTime = new Date(Date.now() + campaign.interval_minutes * 60 * 1000);
                 await db.updateNextBuyTime(campaign.id, nextBuyTime);
@@ -63,15 +74,15 @@ async function processCampaignBuy(campaign) {
             } else {
                 logger.info(`🎉 Campaign ${campaign.id} completed!`);
             }
-            
+
         } else {
             logger.error(`❌ Buy failed for campaign ${campaign.id}: ${result.error}`);
-            
+
             const retryTime = new Date(Date.now() + 5 * 60 * 1000);
             await db.updateNextBuyTime(campaign.id, retryTime);
             logger.info(`Retry scheduled for campaign ${campaign.id} at ${retryTime}`);
         }
-        
+
     } catch (error) {
         logger.error(`Error processing campaign ${campaign.id}:`, error);
     }

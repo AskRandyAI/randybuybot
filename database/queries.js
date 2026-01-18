@@ -541,3 +541,84 @@ async function getUserRecentTokens(telegramId, limit = 2) {
         return [];
     }
 }
+
+// ===== NEW: Dust Sweep Queries =====
+
+// Get completed campaigns that haven't been swept yet
+async function getUnsweptCompletedCampaigns(limit = 10) {
+    try {
+        // First ensure column exists (lazy migration)
+        await ensureDustSweptColumn();
+
+        const result = await pool.query(
+            `SELECT * FROM randybuybot_campaigns 
+             WHERE status = 'completed' 
+             AND (dust_swept IS NULL OR dust_swept = FALSE)
+             LIMIT $1`,
+            [limit]
+        );
+        return result.rows;
+    } catch (error) {
+        logger.error('Error getting unswept campaigns:', error);
+        return [];
+    }
+}
+
+// Mark campaign as swept
+async function markCampaignSwept(campaignId) {
+    try {
+        await pool.query(
+            `UPDATE randybuybot_campaigns 
+             SET dust_swept = TRUE, updated_at = NOW()
+             WHERE id = $1`,
+            [campaignId]
+        );
+    } catch (error) {
+        logger.error('Error marking campaign as swept:', error);
+    }
+}
+
+// Helper to ensure column exists
+async function ensureDustSweptColumn() {
+    try {
+        await pool.query(
+            `ALTER TABLE randybuybot_campaigns 
+             ADD COLUMN IF NOT EXISTS dust_swept BOOLEAN DEFAULT FALSE`
+        );
+    } catch (error) {
+        // Ignore if error is 'column exists' (though IF NOT EXISTS handles it)
+        logger.warn('Schema update warning (dust_swept):', error.message);
+    }
+}
+
+module.exports = {
+    getOrCreateUser,
+    createCampaign,
+    getActiveCampaign,
+    getUserBuyHistory,
+    updateCampaignStatus,
+    getAdminSetting,
+    getCampaignById,
+    getAwaitingDepositCampaigns,
+    updateCampaignDeposit,
+    createBuy,
+    updateCampaignProgress,
+    getDueCampaigns,
+    updateNextBuyTime,
+    getTokensBought,
+    getUserFullHistory,
+    getUserStats,
+    getAllUsers,
+    getSystemStats,
+    getRecentErrors,
+    updateAdminSetting,
+    pauseAllCampaigns,
+    resumeAllCampaigns,
+    getAllCampaigns,
+    getUserActiveCampaigns,
+    getUserLastDestinationWallet,
+    getUserRecentTokens,
+    // New exports
+    getUnsweptCompletedCampaigns,
+    markCampaignSwept
+};
