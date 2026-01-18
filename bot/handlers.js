@@ -72,6 +72,9 @@ function initializeBot(bot) {
             case 'enter_new_wallet':
                 await bot.sendMessage(chatId, '📝 *Enter New Wallet*\n\nPlease paste the new Solana address below:', { parse_mode: 'Markdown' });
                 break;
+            case 'enter_custom_amount':
+                await bot.sendMessage(chatId, '📝 *Enter Custom Amount*\n\nPlease type the total deposit amount in USD (e.g., 500):', { parse_mode: 'Markdown' });
+                break;
             // Admin callbacks (if any) could be added here
             default:
                 // Handle dynamic callbacks (presets and saved wallet)

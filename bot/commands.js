@@ -125,11 +125,27 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
             reply_markup: {
               inline_keyboard: [
                 [
-                  { text: '$50', callback_data: 'setup_amount_50' },
-                  { text: '$100', callback_data: 'setup_amount_100' },
-                  { text: '$500', callback_data: 'setup_amount_500' }
+                  { text: '$5', callback_data: 'setup_amount_5' },
+                  { text: '$10', callback_data: 'setup_amount_10' },
+                  { text: '$15', callback_data: 'setup_amount_15' },
+                  { text: '$20', callback_data: 'setup_amount_20' }
                 ],
-                [{ text: '❌ Cancel', callback_data: 'cancel_campaign' }]
+                [
+                  { text: '$25', callback_data: 'setup_amount_25' },
+                  { text: '$30', callback_data: 'setup_amount_30' },
+                  { text: '$35', callback_data: 'setup_amount_35' },
+                  { text: '$50', callback_data: 'setup_amount_50' }
+                ],
+                [
+                  { text: '$75', callback_data: 'setup_amount_75' },
+                  { text: '$100', callback_data: 'setup_amount_100' },
+                  { text: '$150', callback_data: 'setup_amount_150' },
+                  { text: '$250', callback_data: 'setup_amount_250' }
+                ],
+                [
+                  { text: '⌨️ Other Amount', callback_data: 'enter_custom_amount' },
+                  { text: '❌ Cancel', callback_data: 'cancel_campaign' }
+                ]
               ]
             }
           }
