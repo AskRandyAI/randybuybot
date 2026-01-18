@@ -46,7 +46,21 @@
                 </div>
             </div>
 
-            <button class="btn-new" id="create-btn">START NEW CAMPAIGN</button>
+            <div class="benefits-section"
+                style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, rgba(138, 43, 226, 0.1), rgba(0, 250, 154, 0.05)); border-radius: 16px; border: 1px solid var(--glass-border);">
+                <h3 style="margin-bottom: 12px; font-size: 1.1rem; text-align: center; color: #fff;">💎 Why Solstice for
+                    Low Caps?</h3>
+                <ul style="list-style: none; font-size: 0.85rem; color: var(--text-dim); line-height: 1.6;">
+                    <li style="margin-bottom: 8px;">🚀 <b>Fresh Wallets</b>: Every campaign gets a brand new wallet. No
+                        tracking history.</li>
+                    <li style="margin-bottom: 8px;">📉 <b>Low Fee Impact</b>: Standard priority fees mean you don't
+                        overpay on gas for small buys.</li>
+                    <li style="margin-bottom: 8px;">🤏 <b>Micro-DCA</b>: Minimum deposit is just $5. Perfect for
+                        building early positions in new tokens.</li>
+                </ul>
+            </div>
+
+            <button class="btn-new" id="create-btn" style="margin-top:20px;">START NEW CAMPAIGN</button>
         </section>
 
         <!-- CREATE CAMPAIGN VIEW -->
@@ -57,6 +71,7 @@
             </div>
 
             <form id="create-form">
+                <!-- (Form Content remains same) -->
                 <div class="form-group">
                     <label>Destination Wallet <span
                             style="font-weight: 400; font-size: 0.75rem; color: var(--secondary); float: right;">(Your
@@ -140,34 +155,26 @@
             <div class="faq-section"
                 style="margin-top: 40px; padding: 20px; background: rgba(255,255,255,0.03); border-radius: 16px;">
                 <h3 style="margin-bottom: 20px; font-size: 1.2rem; color: var(--secondary); text-align: center;">
-                    Frequently Asked Questions</h3>
+                    FAQ</h3>
 
                 <div class="faq-item" style="margin-bottom: 15px;">
-                    <h4 style="font-size: 0.95rem; margin-bottom: 5px; color: #fff;">🔒 Is my deposit safe?</h4>
-                    <p style="font-size: 0.85rem; color: var(--text-dim);">Yes. Each campaign creates a unique,
-                        dedicated wallet. Your funds are only used for the buys you schedule. The bot does not have
-                        access to your personal main wallet.</p>
+                    <h4 style="font-size: 0.95rem; margin-bottom: 5px; color: #fff;">🔒 Security & Refunds?</h4>
+                    <p style="font-size: 0.85rem; color: var(--text-dim);">Funds are held in a unique wallet created
+                        just for you. If you cancel, <b>100% of unspent SOL is automatically refunded</b> to your
+                        destination wallet instantly.</p>
                 </div>
 
                 <div class="faq-item" style="margin-bottom: 15px;">
-                    <h4 style="font-size: 0.95rem; margin-bottom: 5px; color: #fff;">🧹 What is "Sweeping"?</h4>
-                    <p style="font-size: 0.85rem; color: var(--text-dim);">After your campaign finishes (or if you
-                        cancel it), all purchased tokens are automatically transferred ("swept") to your destination
-                        wallet in one batch to save on gas fees.</p>
+                    <h4 style="font-size: 0.95rem; margin-bottom: 5px; color: #fff;">🧹 What is "Dust"?</h4>
+                    <p style="font-size: 0.85rem; color: var(--text-dim);">Small amounts of SOL (~0.01) must remain in
+                        the wallet to pay for gas during the campaign. After a campaign is 100% complete, this dust is
+                        swept to maintain the system.</p>
                 </div>
 
                 <div class="faq-item" style="margin-bottom: 15px;">
-                    <h4 style="font-size: 0.95rem; margin-bottom: 5px; color: #fff;">💸 Can I get a refund?</h4>
-                    <p style="font-size: 0.85rem; color: var(--text-dim);">Absolutely. If you cancel a campaign mid-way,
-                        any unspent SOL remains in the campaign wallet. You can use the <code>/help</code> command in
-                        the bot to find the withdraw option to retrieve unspent funds.</p>
-                </div>
-
-                <div class="faq-item">
-                    <h4 style="font-size: 0.95rem; margin-bottom: 5px; color: #fff;">⏱️ What is the minimum interval?
-                    </h4>
-                    <p style="font-size: 0.85rem; color: var(--text-dim);">The bot can execute trades as fast as every 1
-                        minute.</p>
+                    <h4 style="font-size: 0.95rem; margin-bottom: 5px; color: #fff;">📉 Good for Low Cap?</h4>
+                    <p style="font-size: 0.85rem; color: var(--text-dim);">Yes! With a $5 minimum and standard gas fees,
+                        Solstice is optimized for buying early entries into low market cap coins without overpaying.</p>
                 </div>
             </div>
         </section>

@@ -1,13 +1,13 @@
 :root {
-    --bg-color: #0d0e12;
-    --card-bg: rgba(255, 255, 255, 0.03);
-    --primary: #bc13fe;
-    /* Electric Purple */
-    --secondary: #00f2ff;
-    /* Cyan */
+    --bg-color: #0b0c15;
+    --card-bg: rgba(255, 255, 255, 0.04);
+    --primary: #8A2BE2;
+    /* BlueViolet */
+    --secondary: #00FA9A;
+    /* MediumSpringGreen */
     --text: #ffffff;
-    --text-dim: rgba(255, 255, 255, 0.6);
-    --glass-border: rgba(255, 255, 255, 0.1);
+    --text-dim: rgba(255, 255, 255, 0.65);
+    --glass-border: rgba(255, 255, 255, 0.08);
 }
 
 * {
@@ -22,8 +22,8 @@ body {
     color: var(--text);
     overflow-x: hidden;
     background-image:
-        radial-gradient(circle at 10% 20%, rgba(188, 19, 254, 0.05) 0%, transparent 40%),
-        radial-gradient(circle at 90% 80%, rgba(0, 242, 255, 0.05) 0%, transparent 40%);
+        radial-gradient(circle at 10% 20%, rgba(138, 43, 226, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(0, 250, 154, 0.1) 0%, transparent 40%);
     min-height: 100vh;
 }
 
