@@ -1,18 +1,31 @@
 const { FEE_PER_BUY_USD } = require('../config/constants');
 
 function welcomeMessage() {
-    return `🚀 *WELCOME TO SOLSTICE BUY BOT*
+    return `🌞 *SOLSTICE BUY BOT*
 ━━━━━━━━━━━━━━━━━━━━━━━
 
-The most secure & efficient way to DCA into Solana gems. Your private keys are never exposed, and tokens go straight to your wallet.
+*The premium autonomous trading terminal for Solana.*
 
-✨ *Features:*
-• *Capital Safety:* Dedicated deposit wallets
-• *Minimal Fees:* Only \`$${FEE_PER_BUY_USD}\` per buy
-• *Direct Delivery:* Tokens sent to your wallet
-• *Autonomy:* Fully automatic execution
+Solstice automates your token accumulation with military-grade security and stealth execution.
 
-👇 *Choose an option below to begin:*`;
+💎 *ELITE FEATURES*
+━━━━━━━━━━━━━━
+🔒 *Unique Deposit Wallets*
+Every campaign gets a fresh, isolated wallet. Your main funds stay untouched.
+
+👻 *Stealth Execution*
+Buys are split into small, random amounts to avoid detection and price pumps.
+
+⚡ *Turbo Mode*
+Intervals as fast as 1 minute for rapid accumulation.
+
+🧹 *Auto-Sweep*
+Tokens are automatically sent to your destination wallet when finished.
+
+💸 *Cost Efficiency*
+Only \`$${FEE_PER_BUY_USD}\` fee per buy.
+
+👇 *Select an option to begin:*`;
 }
 
 function helpMessage() {

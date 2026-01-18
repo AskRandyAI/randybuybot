@@ -181,11 +181,13 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
 
         userState.data.totalDeposit = deposit;
         userState.step = 'number_of_buys';
+        const maxBuys = Math.floor(userState.data.totalDeposit / constants.MIN_PER_BUY_USD);
+
         await bot.sendMessage(
           chatId,
           '✅ *Amount saved!*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n' +
           'Step 4 of 5: *Number of Buys*\n' +
-          'How many trades should the bot execute?',
+          `How many trades should the bot execute?\n_(Max: ${maxBuys} buys for this deposit)_`,
           {
             parse_mode: 'Markdown',
             reply_markup: {
@@ -225,27 +227,26 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
           chatId,
           '✅ *Trades saved!*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n' +
           'Step 5 of 5: *Buy Interval*\n' +
-          'How often should the bot buy?',
+          'How many *minutes* should the bot wait between each buy?\n\n' +
+          '👇 Select a preset or choose "Other" to type your own:',
           {
             parse_mode: 'Markdown',
             reply_markup: {
-              reply_markup: {
-                inline_keyboard: [
-                  [
-                    { text: '1m', callback_data: 'setup_interval_1' },
-                    { text: '5m', callback_data: 'setup_interval_5' },
-                    { text: '10m', callback_data: 'setup_interval_10' }
-                  ],
-                  [
-                    { text: '15m', callback_data: 'setup_interval_15' },
-                    { text: '20m', callback_data: 'setup_interval_20' }
-                  ],
-                  [
-                    { text: '⌨️ Other', callback_data: 'enter_custom_interval' },
-                    { text: '❌ Cancel', callback_data: 'cancel_campaign' }
-                  ]
+              inline_keyboard: [
+                [
+                  { text: '5m', callback_data: 'setup_interval_5' },
+                  { text: '10m', callback_data: 'setup_interval_10' },
+                  { text: '20m', callback_data: 'setup_interval_20' }
+                ],
+                [
+                  { text: '50m', callback_data: 'setup_interval_50' },
+                  { text: '60m', callback_data: 'setup_interval_60' }
+                ],
+                [
+                  { text: '⌨️ Other', callback_data: 'enter_custom_interval' },
+                  { text: '❌ Cancel', callback_data: 'cancel_campaign' }
                 ]
-              }
+              ]
             }
           }
         );
