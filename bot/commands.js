@@ -93,6 +93,19 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
         );
 
         userState.step = 'token_address';
+        const recentTokens = await db.getUserRecentTokens(userId, 2);
+        const tokenKeyboard = { inline_keyboard: [] };
+
+        if (recentTokens && recentTokens.length > 0) {
+          recentTokens.forEach(token => {
+            tokenKeyboard.inline_keyboard.push([{
+              text: `🪙 Use: ${token.substring(0, 4)}...${token.substring(token.length - 4)}`,
+              callback_data: `use_token_${token}`
+            }]);
+          });
+        }
+        tokenKeyboard.inline_keyboard.push([{ text: '❌ Cancel', callback_data: 'cancel_campaign' }]);
+
         await bot.sendMessage(
           chatId,
           '✅ *Wallet saved!*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n' +
@@ -100,9 +113,7 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
           'Paste the Solana contract address of the token:',
           {
             parse_mode: 'Markdown',
-            reply_markup: {
-              inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'cancel_campaign' }]]
-            }
+            reply_markup: tokenKeyboard
           }
         );
         break;

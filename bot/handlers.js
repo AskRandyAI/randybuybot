@@ -88,6 +88,14 @@ function initializeBot(bot) {
                         await commands.handleCampaignSetupStep(bot, msg, userStates);
                     }
                 }
+                // Saved token button
+                else if (data.startsWith('use_token_')) {
+                    const token = data.replace('use_token_', '');
+                    if (userState && userState.step === 'token_address') {
+                        msg.text = token;
+                        await commands.handleCampaignSetupStep(bot, msg, userStates);
+                    }
+                }
                 // Amount presets
                 else if (data.startsWith('setup_amount_')) {
                     const amount = data.replace('setup_amount_', '');
