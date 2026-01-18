@@ -53,6 +53,7 @@ async function handleNewCampaign(bot, msg, userStates) {
 
   if (lastWallet) {
     keyboard.inline_keyboard.push([{ text: `🏠 Use: ${lastWallet.substring(0, 10)}...${lastWallet.substring(34)}`, callback_data: `use_wallet_${lastWallet}` }]);
+    keyboard.inline_keyboard.push([{ text: '✏️ Enter New Wallet', callback_data: 'enter_new_wallet' }]);
   }
   keyboard.inline_keyboard.push([{ text: '❌ Cancel', callback_data: 'cancel_campaign' }]);
 

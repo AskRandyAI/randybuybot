@@ -69,6 +69,9 @@ function initializeBot(bot) {
             case 'history':
                 await commands.handleHistory(bot, msg);
                 break;
+            case 'enter_new_wallet':
+                await bot.sendMessage(chatId, '📝 *Enter New Wallet*\n\nPlease paste the new Solana address below:', { parse_mode: 'Markdown' });
+                break;
             // Admin callbacks (if any) could be added here
             default:
                 // Handle dynamic callbacks (presets and saved wallet)
