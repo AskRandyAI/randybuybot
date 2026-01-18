@@ -78,7 +78,23 @@ function info(message, ...args) {
 }
 
 function error(message, ...args) {
-    logger.error(message, { requestId: currentRequestId, ...args });
+    const meta = { requestId: currentRequestId };
+    if (args.length > 0) {
+        args.forEach((arg, i) => {
+            if (arg instanceof Error) {
+                meta[`error${i > 0 ? i : ''}`] = {
+                    message: arg.message,
+                    stack: arg.stack,
+                    ...arg
+                };
+            } else if (typeof arg === 'object') {
+                Object.assign(meta, arg);
+            } else {
+                meta[`arg${i}`] = arg;
+            }
+        });
+    }
+    logger.error(message, meta);
 }
 
 function warn(message, ...args) {

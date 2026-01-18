@@ -21,7 +21,7 @@ async function getSolPrice() {
         }
 
         const solPrice = parseFloat(price);
-        logger.info(`💰 Current SOL Price: $${solPrice}`);
+        logger.info(`💰 [DIAG-P1] Current SOL Price: $${solPrice}`);
         return solPrice;
 
     } catch (error) {
@@ -37,7 +37,7 @@ async function getSolPrice() {
 
             if (!backupPrice) throw new Error('Invalid backup price data');
 
-            logger.info(`💰 Current SOL Price (Backup): $${backupPrice}`);
+            logger.info(`💰 [DIAG-P2] Current SOL Price (Backup): $${backupPrice}`);
             return parseFloat(backupPrice);
 
         } catch (backupError) {

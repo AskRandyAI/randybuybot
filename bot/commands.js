@@ -1,10 +1,14 @@
+const { PublicKey, Keypair } = require('@solana/web3.js');
+const bs58 = require('bs58');
 const calculator = require('../utils/calculator');
 const price = require('../utils/price');
 const validator = require('../utils/validator');
 const messages = require('./messages');
 const logger = require('../utils/logger');
 const db = require('../database/queries');
-const { MIN_INTERVAL_MINUTES } = require('../config/constants');
+const constants = require('../config/constants');
+const wallet = require('../blockchain/wallet');
+const { MIN_INTERVAL_MINUTES } = constants;
 
 
 async function handleStart(bot, msg) {
@@ -236,8 +240,6 @@ async function handleConfirm(bot, msg, userStates) {
     );
 
     // 0. Generate Unique Wallet for this campaign
-    const { Keypair } = require('@solana/web3.js');
-    const bs58 = require('bs58');
     const newKeypair = Keypair.generate();
     const depositAddress = newKeypair.publicKey.toString();
     const depositPrivateKey = bs58.encode(newKeypair.secretKey);
@@ -275,19 +277,23 @@ async function handleConfirm(bot, msg, userStates) {
     const finalExpectedSOL = realExpectedSolBase + gasBuffer + dust;
 
 
-    const created = await db.createCampaign({
+    const campaignParams = {
       telegramId: userId,
       tokenAddress: userState.data.tokenAddress,
       destinationWallet: userState.data.destinationWallet,
       totalDeposit: userState.data.totalDeposit,
       numberOfBuys: userState.data.numberOfBuys,
       interval: userState.data.interval,
-      totalFees: calc.totalFees, // Keep as is
-      perBuyAmount: calc.perBuyAmount, // Keep as is
-      expectedDepositSOL: finalExpectedSOL.toFixed(9), // Use the new unique amount
+      totalFees: calc.totalFees,
+      perBuyAmount: calc.perBuyAmount,
+      expectedDepositSOL: finalExpectedSOL.toFixed(9),
       depositAddress: depositAddress,
       depositPrivateKey: depositPrivateKey
-    });
+    };
+
+    logger.info('[DIAG-C1] Creating campaign with params:', JSON.parse(JSON.stringify(campaignParams)));
+
+    const created = await db.createCampaign(campaignParams);
 
 
     await bot.sendMessage(
@@ -322,7 +328,8 @@ async function handleConfirm(bot, msg, userStates) {
 
   } catch (error) {
     logger.error('Error confirming campaign:', error);
-    await bot.sendMessage(chatId, `❌ Failed to create campaign: ${error.message}`);
+    const errorDetails = error.stack || error.message || JSON.stringify(error);
+    await bot.sendMessage(chatId, `❌ Failed to create campaign: ${error.message || 'Unknown error'}`);
     userStates.delete(userId);
   }
 }
@@ -351,18 +358,17 @@ async function handleStatus(bot, msg) {
 
     // Check if campaign is waiting for deposit
     if (campaign.status === 'awaiting_deposit') {
-      const { getConnection, lamportsToSol, getDepositPublicKey } = require('../blockchain/wallet');
-      const connection = getConnection();
+      const connection = wallet.getConnection();
 
       let pubKey;
       if (campaign.deposit_address) {
         pubKey = new PublicKey(campaign.deposit_address);
       } else {
-        pubKey = getDepositPublicKey();
+        pubKey = wallet.getDepositPublicKey();
       }
 
       const balanceLamports = await connection.getBalance(pubKey);
-      const balanceSOL = lamportsToSol(balanceLamports);
+      const balanceSOL = wallet.lamportsToSol(balanceLamports);
 
 
       if (balanceSOL >= parseFloat(campaign.expected_deposit_sol) * 0.5) {
