@@ -523,3 +523,21 @@ module.exports = {
     getUserLastDestinationWallet,
     getUserRecentTokens
 };
+
+async function getUserRecentTokens(telegramId, limit = 2) {
+    try {
+        const result = await pool.query(
+            `SELECT token_address, MAX(created_at) as last_used
+             FROM randybuybot_campaigns
+             WHERE telegram_id = $1
+             GROUP BY token_address
+             ORDER BY last_used DESC
+             LIMIT $2`,
+            [telegramId, limit]
+        );
+        return result.rows.map(row => row.token_address);
+    } catch (error) {
+        logger.error('Error getting recent tokens:', error);
+        return [];
+    }
+}
