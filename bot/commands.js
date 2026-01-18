@@ -195,7 +195,10 @@ async function handleCampaignSetupStep(bot, msg, userStates) {
                   { text: '25', callback_data: 'setup_buys_25' },
                   { text: '50', callback_data: 'setup_buys_50' }
                 ],
-                [{ text: '❌ Cancel', callback_data: 'cancel_campaign' }]
+                [
+                  { text: '⌨️ Other', callback_data: 'enter_custom_buys' },
+                  { text: '❌ Cancel', callback_data: 'cancel_campaign' }
+                ]
               ]
             }
           }

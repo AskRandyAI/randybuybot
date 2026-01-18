@@ -78,6 +78,9 @@ function initializeBot(bot) {
             case 'enter_custom_interval':
                 await bot.sendMessage(chatId, '📝 *Enter Custom Interval*\n\nPlease type the buy interval in minutes (e.g., 45):', { parse_mode: 'Markdown' });
                 break;
+            case 'enter_custom_buys':
+                await bot.sendMessage(chatId, '📝 *Enter Custom Number of Buys*\n\nPlease type the number of trades (e.g., 100):', { parse_mode: 'Markdown' });
+                break;
             // Admin callbacks (if any) could be added here
             default:
                 // Handle dynamic callbacks (presets and saved wallet)
