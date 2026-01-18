@@ -69,6 +69,23 @@ async function getActiveCampaign(telegramId) {
     }
 }
 
+// Get all active campaigns for user
+async function getUserActiveCampaigns(telegramId) {
+    try {
+        const result = await pool.query(
+            `SELECT * FROM randybuybot_campaigns
+             WHERE telegram_id = $1
+             AND status IN ('awaiting_deposit', 'active')
+             ORDER BY created_at DESC`,
+            [telegramId]
+        );
+        return result.rows;
+    } catch (error) {
+        logger.error('Error getting user active campaigns:', error);
+        throw error;
+    }
+}
+
 // Get user buy history
 async function getUserBuyHistory(telegramId, limit = 10) {
     try {
@@ -484,5 +501,6 @@ module.exports = {
     updateAdminSetting,
     pauseAllCampaigns,
     resumeAllCampaigns,
-    getAllCampaigns
+    getAllCampaigns,
+    getUserActiveCampaigns
 };

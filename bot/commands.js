@@ -16,6 +16,7 @@ async function handleStart(bot, msg) {
   await bot.sendMessage(chatId, messages.welcomeMessage(), {
     reply_markup: {
       inline_keyboard: [
+        [{ text: '📱 Open Solstice Dashboard', web_app: { url: process.env.DASHBOARD_URL || 'https://google.com' } }],
         [{ text: '🚀 New Campaign', callback_data: 'new_campaign' }],
         [{ text: '📊 Status', callback_data: 'status' }, { text: '📜 History', callback_data: 'history' }],
         [{ text: '❓ Help', callback_data: 'help' }]

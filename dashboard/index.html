@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Solstice Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">SOLSTICE</div>
+            <div id="sol-price" class="stat-card" style="padding: 10px 15px; flex-direction: row; align-items: center; gap: 8px;">
+                <span style="color: var(--secondary); font-size: 0.8rem; font-weight: 800;">SOL</span>
+                <span id="price-value" style="font-size: 0.9rem; font-weight: 700;">$0.00</span>
+            </div>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="label">Total Managed</span>
+                <span id="total-managed" class="value">$0.00</span>
+            </div>
+            <div class="stat-card">
+                <span class="label">Total Buys</span>
+                <span id="total-buys" class="value">0</span>
+            </div>
+        </div>
+
+        <section class="campaigns-section">
+            <div class="section-header">
+                <h2>ACTIVE CAMPAIGNS</h2>
+            </div>
+
+            <div id="campaign-list">
+                <!-- Loading State -->
+                <div class="empty-state">
+                    <p>Fetching your campaigns...</p>
+                </div>
+            </div>
+
+            <button class="btn-new" id="create-btn">START NEW CAMPAIGN</button>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
