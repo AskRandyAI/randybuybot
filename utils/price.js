@@ -10,6 +10,8 @@ async function getSolPrice() {
             headers: { 'User-Agent': 'RandyBuyBot/1.0' }
         });
         if (!response.ok) {
+            const errorText = await response.text();
+            logger.warn(`[DIAG-P0] Price API failed (${response.status}: ${response.statusText}). Body: ${errorText}`);
             throw new Error(`Price API failed (${response.status}): ${response.statusText}`);
         }
 

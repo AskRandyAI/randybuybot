@@ -35,9 +35,11 @@ async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 100
         });
 
         const JUP_KEY = process.env.JUPITER_API_KEY;
-
         const JUP_BASE = JUP_KEY ? JUPITER_API_ULTRA : JUPITER_API_PUBLIC;
         const url = `${JUP_BASE}/order?${params}`;
+
+        logger.info(`[DIAG-J1] Fetching quote from: ${url.replace(JUP_KEY, 'REDACTED')}`);
+
         let response = await fetch(url, {
             headers: {
                 'User-Agent': 'RandyBuyBot/1.0',
@@ -46,7 +48,7 @@ async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 100
         });
 
         if (!response.ok && JUP_KEY) {
-            logger.warn(`Ultra API failed (${response.status}). Trying V6 backup...`);
+            logger.warn(`[DIAG-J2] Ultra API failed (${response.status}: ${response.statusText}). Trying V6 backup...`);
             const v6Params = new URLSearchParams({
                 inputMint,
                 outputMint,
@@ -54,7 +56,9 @@ async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 100
                 autoSlippage: 'true',
                 maxAutoSlippageBps: '2000'
             });
-            response = await fetch(`${JUPITER_API_V6}/quote?${v6Params}`, {
+            const v6Url = `${JUPITER_API_V6}/quote?${v6Params}`;
+            logger.info(`[DIAG-J3] Fetching backup quote from: ${v6Url}`);
+            response = await fetch(v6Url, {
                 headers: { 'User-Agent': 'RandyBuyBot/1.0' }
             });
         }
@@ -118,6 +122,7 @@ async function executeSwap(quote, userKeypair = null) {
 
             if (!executeResponse.ok) {
                 const errorText = await executeResponse.text();
+                logger.error(`[DIAG-J4] Jupiter Ultra execute failed: Status ${executeResponse.status}`, { errorText });
                 throw new Error(`Jupiter Ultra execute failed: ${errorText}`);
             }
 
