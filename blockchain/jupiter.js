@@ -42,7 +42,7 @@ async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 100
 
         let response = await fetch(url, {
             headers: {
-                'User-Agent': 'SolsticeBuyBot/1.0',
+                'User-Agent': 'SolsticeBuyer/1.0',
                 'x-api-key': JUP_KEY || ''
             }
         });
@@ -59,7 +59,7 @@ async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 100
             const v6Url = `${JUPITER_API_V6}/quote?${v6Params}`;
             logger.info(`[DIAG-J3] Fetching backup quote from: ${v6Url}`);
             response = await fetch(v6Url, {
-                headers: { 'User-Agent': 'RandyBuyBot/1.0' }
+                headers: { 'User-Agent': 'SolsticeBuyer/1.0' }
             });
         }
 
@@ -111,7 +111,7 @@ async function executeSwap(quote, userKeypair = null) {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'User-Agent': 'VelocityDCA/1.0',
+                    'User-Agent': 'SolsticeBuyer/1.0',
                     'x-api-key': JUPITER_API_KEY
                 },
                 body: JSON.stringify({
@@ -149,7 +149,7 @@ async function executeSwap(quote, userKeypair = null) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'User-Agent': 'RandyBuyBot/1.0'
+                'User-Agent': 'SolsticeBuyer/1.0'
             },
             body: JSON.stringify(swapBody)
         });

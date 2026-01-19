@@ -62,9 +62,12 @@ async function processCampaignBuy(campaign) {
     try {
         logger.info(`Processing buy for campaign ${campaign.id}`);
 
+        // 1. Set processing lock
+        await db.setCampaignProcessing(campaign.id, true);
+
         const result = await executeBuy(campaign);
 
-        if (result.success) {
+        if (result && result.success) {
             logger.info(`✅ Buy successful for campaign ${campaign.id}`);
 
             if (!result.isComplete) {
@@ -76,15 +79,21 @@ async function processCampaignBuy(campaign) {
             }
 
         } else {
-            logger.error(`❌ Buy failed for campaign ${campaign.id}: ${result.error}`);
+            const errorMsg = result ? result.error : 'Unknown error';
+            logger.error(`❌ Buy failed for campaign ${campaign.id}: ${errorMsg}`);
 
             const retryTime = new Date(Date.now() + 5 * 60 * 1000);
             await db.updateNextBuyTime(campaign.id, retryTime);
             logger.info(`Retry scheduled for campaign ${campaign.id} at ${retryTime}`);
         }
 
+        // 2. Lock is removed either inside updateCampaignProgress (on success) 
+        //    or here if something failed before update was reached.
+        await db.setCampaignProcessing(campaign.id, false);
+
     } catch (error) {
         logger.error(`Error processing campaign ${campaign.id}:`, error);
+        await db.setCampaignProcessing(campaign.id, false).catch(() => { });
     }
 }
 

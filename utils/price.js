@@ -8,7 +8,7 @@ async function getSolPrice() {
     try {
         const response = await fetch(JUPITER_PRICE_API, {
             headers: {
-                'User-Agent': 'RandyBuyBot/1.0',
+                'User-Agent': 'SolsticeBuyer/1.0',
                 'x-api-key': process.env.JUPITER_API_KEY || ''
             }
         });

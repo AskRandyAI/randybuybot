@@ -35,7 +35,7 @@ for (const envVar of requiredEnvVars) {
 // Initialize Telegram Bot
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 
-logger.info('🤖 Solstice Buy Bot starting...');
+logger.info('🤖 SolsticeBuyer starting...');
 
 // Initialize bot handlers
 initializeBot(bot);
@@ -49,7 +49,7 @@ startDepositMonitor();
 // Start buy scheduler
 startBuyScheduler();
 
-logger.info('✅ RandyBuyBot is running!');
+logger.info('✅ SolsticeBuyer is running!');
 
 // --- EXPRESS SERVER FOR MINI APP ---
 const app = express();
@@ -68,7 +68,7 @@ app.get('/api/user-data', async (req, res) => {
         const [stats, campaigns, solPrice, recentTokens] = await Promise.all([
             db.getUserStats(userId),
             db.getUserActiveCampaigns(userId),
-            getSolPrice(),
+            getSolPrice({ headers: { 'User-Agent': 'SolsticeBuyer/1.0' } }),
             db.getUserRecentTokens(userId)
         ]);
 
@@ -120,7 +120,7 @@ app.post('/api/create-campaign', async (req, res) => {
 
         // 4. Calculate Logic
         const calc = calculator.calculateCampaign(totalDeposit, numberOfBuys);
-        const currentPrice = await getSolPrice().catch(() => null);
+        const currentPrice = await getSolPrice({ headers: { 'User-Agent': 'SolsticeBuyer/1.0' } }).catch(() => null);
 
         if (!currentPrice) {
             return res.status(500).json({ error: 'Could not fetch SOL price' });
@@ -188,7 +188,7 @@ const server = app.listen(PORT, () => {
 
 // Handle process termination
 process.on('SIGINT', async () => {
-    logger.info('🛑 Shutting down RandyBuyBot...');
+    logger.info('🛑 Shutting down SolsticeBuyer...');
     stopDepositMonitor();
     stopBuyScheduler();
     await bot.stopPolling();

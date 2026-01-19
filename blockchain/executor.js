@@ -79,8 +79,11 @@ async function executeBuy(campaign) {
                         campaign.destination_wallet,
                         depositKeypair
                     );
-                    await updateDatabaseAfterSuccess(campaign, 'RECOVERED_SIG', transferSignature, campaign.per_buy_usd, 0, account.amount, 0);
-                    return { success: true, recovered: true };
+
+                    // NEW: Just log recovery, do NOT call updateDatabaseAfterSuccess (which increments progress)
+                    logger.info(`✅ Stuck tokens recovered: ${account.amount.toString()} (tx: ${transferSignature})`);
+
+                    return { success: true, recovered: true, signature: transferSignature };
                 }
             }
         } catch (e) {
@@ -172,13 +175,12 @@ async function executeBuy(campaign) {
         }
 
         // 3. Move Tokens to user (ONLY ON LAST BUY)
-        const newBuysCompleted = campaign.buys_completed + 1;
-        const isComplete = newBuysCompleted >= campaign.number_of_buys;
+        const isComplete = (campaign.buys_completed + 1) >= campaign.number_of_buys;
         let transferSignature = null;
         let totalTokensSent = 0n;
 
         if (isComplete) {
-            logger.info(`Campaign complete! Finalizing batch transfer for campaign ${campaign.id}...`);
+            logger.info(`Campaign complete! Finalizing batch transfer and SOL sweep for campaign ${campaign.id}...`);
 
             // Get all successful tokens from history + current buy
             const historicalTokens = await db.getTokensBought(campaign.id);
@@ -193,6 +195,31 @@ async function executeBuy(campaign) {
                 depositKeypair
             );
 
+            // --- FULL SOL SWEEP (Safety Check: Only on real completion) ---
+            try {
+                const finalBalance = await connection.getBalance(depositKeypair.publicKey);
+                const sweepBuffer = 0.00001 * 1e9; // 10,000 lamports buffer
+
+                if (finalBalance > sweepBuffer) {
+                    const sweepAmount = finalBalance - sweepBuffer;
+                    logger.info(`🧹 Preparing final SOL sweep of ${sweepAmount / 1e9} SOL...`);
+
+                    const sweepTx = new Transaction().add(
+                        SystemProgram.transfer({
+                            fromPubkey: depositKeypair.publicKey,
+                            toPubkey: new PublicKey(campaign.destination_wallet),
+                            lamports: Math.floor(sweepAmount)
+                        })
+                    );
+                    const sweepSig = await connection.sendTransaction(sweepTx, [depositKeypair]);
+                    logger.info(`✅ SOL Sweep Success: ${sweepAmount / 1e9} SOL sent to ${campaign.destination_wallet} (tx: ${sweepSig})`);
+                } else {
+                    logger.info(`ℹ️ Wallet balance too low for sweep (${finalBalance / 1e9} SOL). skipping.`);
+                }
+            } catch (sweepError) {
+                logger.warn(`SOL Sweep failed: ${sweepError.message}`);
+            }
+
         } else {
             logger.info(`Pooling tokens in bot wallet. Transfer will happen after final buy (#${campaign.number_of_buys}).`);
         }
@@ -204,7 +231,8 @@ async function executeBuy(campaign) {
             campaign.per_buy_usd,
             buyAmountSOL,
             swapResult.outputAmount,
-            feeSignature ? feeSOL : 0
+            feeSignature ? feeSOL : 0,
+            isComplete
         );
 
 
@@ -214,7 +242,7 @@ async function executeBuy(campaign) {
 
         const result = {
             success: true,
-            buyNumber: newBuysCompleted,
+            buyNumber: campaign.buys_completed + 1,
             totalBuys: campaign.number_of_buys,
             tokensReceived: swapResult.outputAmount,
             totalAccumulated: totalAccumulated.toString(),
@@ -223,10 +251,10 @@ async function executeBuy(campaign) {
             isComplete: isComplete
         };
 
-
+        // Notify of the buy
         await notifications.notifyBuyCompleted(campaign, result);
 
-
+        // Notify of completion (if it's the last one)
         if (isComplete) {
             await notifications.notifyCampaignCompleted(campaign);
         }
@@ -256,7 +284,7 @@ async function executeBuy(campaign) {
     }
 }
 
-async function updateDatabaseAfterSuccess(campaign, swapSig, transferSig, usd, sol, tokens, fee) {
+async function updateDatabaseAfterSuccess(campaign, swapSig, transferSig, usd, sol, tokens, fee, isComplete) {
     await db.createBuy({
         campaignId: campaign.id,
         swapSignature: swapSig,
@@ -268,16 +296,12 @@ async function updateDatabaseAfterSuccess(campaign, swapSig, transferSig, usd, s
         status: 'success'
     });
 
-    const newBuysCompleted = campaign.buys_completed + 1;
-    const isComplete = newBuysCompleted >= campaign.number_of_buys;
-
     await db.updateCampaignProgress(
         campaign.id,
-        newBuysCompleted,
         isComplete ? 'completed' : 'active'
     );
 
-    logger.info(`✅ Buy #${newBuysCompleted} successfully processed for campaign ${campaign.id}`);
+    logger.info(`✅ Buy successfully processed for campaign ${campaign.id}`);
 }
 
 module.exports = {

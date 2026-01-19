@@ -5,7 +5,7 @@ const logger = require('../utils/logger');
 async function getOrCreateUser(telegramId, username, destinationWallet) {
     try {
         const result = await pool.query(
-            `INSERT INTO randybuybot_users (telegram_id, username, destination_wallet)
+            `INSERT INTO solstice_users (telegram_id, username, destination_wallet)
              VALUES ($1, $2, $3)
              ON CONFLICT (telegram_id)
              DO UPDATE SET destination_wallet = $3, updated_at = NOW()
@@ -23,7 +23,7 @@ async function getOrCreateUser(telegramId, username, destinationWallet) {
 async function createCampaign(campaignData) {
     try {
         const result = await pool.query(
-            `INSERT INTO randybuybot_campaigns
+            `INSERT INTO solstice_campaigns
              (telegram_id, token_address, destination_wallet, total_deposit_usd,
               number_of_buys, interval_minutes, total_fees_usd, per_buy_usd,
               expected_deposit_sol, deposit_address, deposit_private_key, status)
@@ -55,7 +55,7 @@ async function createCampaign(campaignData) {
 async function getActiveCampaign(telegramId) {
     try {
         const result = await pool.query(
-            `SELECT * FROM randybuybot_campaigns
+            `SELECT * FROM solstice_campaigns
              WHERE telegram_id = $1
              AND status IN ('awaiting_deposit', 'active')
              ORDER BY created_at DESC
@@ -73,7 +73,7 @@ async function getActiveCampaign(telegramId) {
 async function getUserActiveCampaigns(telegramId) {
     try {
         const result = await pool.query(
-            `SELECT * FROM randybuybot_campaigns
+            `SELECT * FROM solstice_campaigns
              WHERE telegram_id = $1
              AND status IN ('awaiting_deposit', 'active')
              ORDER BY created_at DESC`,
@@ -90,8 +90,8 @@ async function getUserActiveCampaigns(telegramId) {
 async function getUserBuyHistory(telegramId, limit = 10) {
     try {
         const result = await pool.query(
-            `SELECT b.* FROM randybuybot_buys b
-             JOIN randybuybot_campaigns c ON b.campaign_id = c.id
+            `SELECT b.* FROM solstice_buys b
+             JOIN solstice_campaigns c ON b.campaign_id = c.id
              WHERE c.telegram_id = $1
              ORDER BY b.executed_at DESC
              LIMIT $2`,
@@ -108,7 +108,7 @@ async function getUserBuyHistory(telegramId, limit = 10) {
 async function updateCampaignStatus(campaignId, status) {
     try {
         await pool.query(
-            `UPDATE randybuybot_campaigns
+            `UPDATE solstice_campaigns
              SET status = $1, updated_at = NOW()
              WHERE id = $2`,
             [status, campaignId]
@@ -123,7 +123,7 @@ async function updateCampaignStatus(campaignId, status) {
 async function getAdminSetting(key) {
     try {
         const result = await pool.query(
-            `SELECT value FROM randybuybot_admin_settings WHERE key = $1`,
+            `SELECT value FROM solstice_admin_settings WHERE key = $1`,
             [key]
         );
         return result.rows[0]?.value || null;
@@ -136,7 +136,7 @@ async function getAdminSetting(key) {
 // Get campaign by ID
 async function getCampaignById(campaignId) {
     const result = await pool.query(
-        `SELECT * FROM randybuybot_campaigns WHERE id = $1 LIMIT 1`,
+        `SELECT * FROM solstice_campaigns WHERE id = $1 LIMIT 1`,
         [campaignId]
     );
     return result.rows[0] || null;
@@ -145,7 +145,7 @@ async function getCampaignById(campaignId) {
 // Get campaigns awaiting deposit
 async function getAwaitingDepositCampaigns(limit = 25) {
     const result = await pool.query(
-        `SELECT * FROM randybuybot_campaigns
+        `SELECT * FROM solstice_campaigns
          WHERE status = 'awaiting_deposit'
          ORDER BY created_at ASC
          LIMIT $1`,
@@ -158,7 +158,7 @@ async function getAwaitingDepositCampaigns(limit = 25) {
 async function updateCampaignDeposit(campaignId, actualDepositSOL, signature) {
     try {
         await pool.query(
-            `UPDATE randybuybot_campaigns 
+            `UPDATE solstice_campaigns 
              SET actual_deposit_sol = $1, 
                  deposit_signature = $2,
                  next_buy_at = NOW(),
@@ -176,7 +176,7 @@ async function updateCampaignDeposit(campaignId, actualDepositSOL, signature) {
 async function createBuy(buyData) {
     try {
         const result = await pool.query(
-            `INSERT INTO randybuybot_buys 
+            `INSERT INTO solstice_buys 
              (campaign_id, swap_signature, transfer_signature, amount_usd, 
               amount_sol, tokens_received, fee_paid_sol, status, error_message)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -200,17 +200,18 @@ async function createBuy(buyData) {
     }
 }
 
-// Update campaign progress
-async function updateCampaignProgress(campaignId, buysCompleted, status) {
+// Update campaign progress (Atomic increment + status update)
+async function updateCampaignProgress(campaignId, status) {
     try {
         await pool.query(
-            `UPDATE randybuybot_campaigns 
-             SET buys_completed = $1,
-                 status = $2::text,
+            `UPDATE solstice_campaigns 
+             SET buys_completed = buys_completed + 1,
+                 status = $1::text,
                  updated_at = NOW(),
-                 completed_at = CASE WHEN $2::text = 'completed' THEN NOW() ELSE completed_at END
-             WHERE id = $3`,
-            [buysCompleted, status, campaignId]
+                 is_processing = FALSE,
+                 completed_at = CASE WHEN $1::text = 'completed' THEN NOW() ELSE completed_at END
+             WHERE id = $2`,
+            [status, campaignId]
         );
     } catch (error) {
         logger.error('Error updating campaign progress:', error);
@@ -218,13 +219,17 @@ async function updateCampaignProgress(campaignId, buysCompleted, status) {
     }
 }
 
-// Get campaigns with buys due
+// Get campaigns with buys due (Excluding those currently processing)
 async function getDueCampaigns() {
     try {
+        // First ensure is_processing column exists
+        await ensureProcessingColumn();
+
         const result = await pool.query(
-            `SELECT * FROM randybuybot_campaigns 
+            `SELECT * FROM solstice_campaigns 
              WHERE status = 'active' 
              AND next_buy_at <= NOW()
+             AND (is_processing IS NULL OR is_processing = FALSE)
              ORDER BY next_buy_at ASC`
         );
         return result.rows;
@@ -234,11 +239,26 @@ async function getDueCampaigns() {
     }
 }
 
+// Toggle processing lock for a campaign
+async function setCampaignProcessing(campaignId, isProcessing) {
+    try {
+        await pool.query(
+            `UPDATE solstice_campaigns 
+             SET is_processing = $1, updated_at = NOW()
+             WHERE id = $2`,
+            [isProcessing, campaignId]
+        );
+    } catch (error) {
+        logger.error('Error setting campaign processing:', error);
+        throw error;
+    }
+}
+
 // Update next buy time
 async function updateNextBuyTime(campaignId, nextBuyTime) {
     try {
         await pool.query(
-            `UPDATE randybuybot_campaigns 
+            `UPDATE solstice_campaigns 
              SET next_buy_at = $1, updated_at = NOW()
              WHERE id = $2`,
             [nextBuyTime, campaignId]
@@ -254,7 +274,7 @@ async function getTokensBought(campaignId) {
     try {
         const result = await pool.query(
             `SELECT COALESCE(SUM(tokens_received::numeric), 0) as total_tokens
-             FROM randybuybot_buys 
+             FROM solstice_buys 
              WHERE campaign_id = $1 AND status = 'success'`,
             [campaignId]
         );
@@ -292,8 +312,8 @@ async function getUserFullHistory(telegramId) {
                 b.status as buy_status,
                 b.executed_at,
                 b.error_message
-             FROM randybuybot_campaigns c
-             LEFT JOIN randybuybot_buys b ON c.id = b.campaign_id
+             FROM solstice_campaigns c
+             LEFT JOIN solstice_buys b ON c.id = b.campaign_id
              WHERE c.telegram_id = $1
              ORDER BY c.created_at DESC, b.executed_at DESC`,
             [telegramId]
@@ -318,8 +338,8 @@ async function getUserStats(telegramId) {
                 COUNT(CASE WHEN b.status = 'failed' THEN 1 END) as failed_buys,
                 COALESCE(SUM(CASE WHEN b.status = 'success' THEN b.amount_usd END), 0) as total_spent_usd,
                 COALESCE(SUM(CASE WHEN b.status = 'success' THEN b.fee_paid_sol END), 0) as total_fees_sol
-             FROM randybuybot_campaigns c
-             LEFT JOIN randybuybot_buys b ON c.id = b.campaign_id
+             FROM solstice_campaigns c
+             LEFT JOIN solstice_buys b ON c.id = b.campaign_id
              WHERE c.telegram_id = $1`,
             [telegramId]
         );
@@ -344,9 +364,9 @@ async function getAllUsers() {
                 COUNT(DISTINCT c.id) as total_campaigns,
                 COUNT(b.id) as total_buys,
                 COALESCE(SUM(CASE WHEN b.status = 'success' THEN b.amount_usd END), 0) as total_volume_usd
-             FROM randybuybot_users u
-             LEFT JOIN randybuybot_campaigns c ON u.telegram_id = c.telegram_id
-             LEFT JOIN randybuybot_buys b ON c.id = b.campaign_id
+             FROM solstice_users u
+             LEFT JOIN solstice_campaigns c ON u.telegram_id = c.telegram_id
+             LEFT JOIN solstice_buys b ON c.id = b.campaign_id
              GROUP BY u.telegram_id, u.username, u.destination_wallet, u.created_at
              ORDER BY total_volume_usd DESC`
         );
@@ -361,16 +381,19 @@ async function getAllUsers() {
 async function getSystemStats() {
     try {
         const result = await pool.query(
-            `SELECT 
-                (SELECT COUNT(*) FROM randybuybot_users) as total_users,
-                (SELECT COUNT(*) FROM randybuybot_campaigns WHERE status = 'active') as active_campaigns,
-                (SELECT COUNT(*) FROM randybuybot_campaigns WHERE status = 'awaiting_deposit') as pending_campaigns,
-                (SELECT COUNT(*) FROM randybuybot_campaigns WHERE status = 'completed') as completed_campaigns,
-                (SELECT COUNT(*) FROM randybuybot_buys WHERE status = 'success') as successful_buys,
-                (SELECT COUNT(*) FROM randybuybot_buys WHERE status = 'failed') as failed_buys,
-                (SELECT COALESCE(SUM(amount_usd), 0) FROM randybuybot_buys WHERE status = 'success') as total_volume_usd,
-                (SELECT COALESCE(SUM(fee_paid_sol), 0) FROM randybuybot_buys WHERE status = 'success') as total_fees_collected_sol,
-                (SELECT COALESCE(AVG(fee_paid_sol), 0) FROM randybuybot_buys WHERE status = 'success') as avg_gas_per_tx_sol`
+            `SELECT *
+             FROM (
+                SELECT 
+                    (SELECT COUNT(*) FROM solstice_users) as total_users,
+                    (SELECT COUNT(*) FROM solstice_campaigns WHERE status = 'active') as active_campaigns,
+                    (SELECT COUNT(*) FROM solstice_campaigns WHERE status = 'awaiting_deposit') as pending_campaigns,
+                    (SELECT COUNT(*) FROM solstice_campaigns WHERE status = 'completed') as completed_campaigns,
+                    (SELECT COUNT(*) FROM solstice_buys WHERE status = 'success') as successful_buys,
+                    (SELECT COUNT(*) FROM solstice_buys WHERE status = 'failed') as failed_buys,
+                    (SELECT COALESCE(SUM(amount_usd), 0) FROM solstice_buys WHERE status = 'success') as total_volume_usd,
+                    (SELECT COALESCE(SUM(fee_paid_sol), 0) FROM solstice_buys WHERE status = 'success') as total_fees_collected_sol,
+                    (SELECT COALESCE(AVG(fee_paid_sol), 0) FROM solstice_buys WHERE status = 'success') as avg_gas_per_tx_sol
+             ) as stats`
         );
         return result.rows[0];
     } catch (error) {
@@ -391,8 +414,8 @@ async function getRecentErrors(limit = 20) {
                 b.amount_usd,
                 b.error_message,
                 b.executed_at
-             FROM randybuybot_buys b
-             JOIN randybuybot_campaigns c ON b.campaign_id = c.id
+             FROM solstice_buys b
+             JOIN solstice_campaigns c ON b.campaign_id = c.id
              WHERE b.status = 'failed'
              ORDER BY b.executed_at DESC
              LIMIT $1`,
@@ -409,7 +432,7 @@ async function getRecentErrors(limit = 20) {
 async function updateAdminSetting(key, value) {
     try {
         await pool.query(
-            `INSERT INTO randybuybot_admin_settings (key, value)
+            `INSERT INTO solstice_admin_settings (key, value)
              VALUES ($1, $2)
              ON CONFLICT (key)
              DO UPDATE SET value = $2, updated_at = NOW()`,
@@ -425,7 +448,7 @@ async function updateAdminSetting(key, value) {
 async function pauseAllCampaigns() {
     try {
         const result = await pool.query(
-            `UPDATE randybuybot_campaigns
+            `UPDATE solstice_campaigns
              SET status = 'paused', updated_at = NOW()
              WHERE status = 'active'
              RETURNING id`
@@ -441,7 +464,7 @@ async function pauseAllCampaigns() {
 async function resumeAllCampaigns() {
     try {
         const result = await pool.query(
-            `UPDATE randybuybot_campaigns
+            `UPDATE solstice_campaigns
              SET status = 'active', updated_at = NOW()
              WHERE status = 'paused'
              RETURNING id`
@@ -461,9 +484,9 @@ async function getAllCampaigns(limit = 50) {
                 c.*,
                 u.username,
                 COUNT(b.id) as total_buys_executed
-             FROM randybuybot_campaigns c
-             JOIN randybuybot_users u ON c.telegram_id = u.telegram_id
-             LEFT JOIN randybuybot_buys b ON c.id = b.campaign_id
+             FROM solstice_campaigns c
+             JOIN solstice_users u ON c.telegram_id = u.telegram_id
+             LEFT JOIN solstice_buys b ON c.id = b.campaign_id
              GROUP BY c.id, u.username
              ORDER BY c.updated_at DESC
              LIMIT $1`,
@@ -480,7 +503,7 @@ async function getAllCampaigns(limit = 50) {
 async function getUserLastDestinationWallet(telegramId) {
     try {
         const result = await pool.query(
-            `SELECT destination_wallet FROM randybuybot_campaigns
+            `SELECT destination_wallet FROM solstice_campaigns
              WHERE telegram_id = $1
              ORDER BY created_at DESC
              LIMIT 1`,
@@ -493,42 +516,12 @@ async function getUserLastDestinationWallet(telegramId) {
     }
 }
 
-module.exports = {
-    getOrCreateUser,
-    createCampaign,
-    getActiveCampaign,
-    getUserBuyHistory,
-    updateCampaignStatus,
-    getAdminSetting,
-    getCampaignById,
-    getAwaitingDepositCampaigns,
-    updateCampaignDeposit,
-    createBuy,
-    updateCampaignProgress,
-    getDueCampaigns,
-    updateNextBuyTime,
-    getTokensBought,
-    // New exports
-
-    getUserFullHistory,
-    getUserStats,
-    getAllUsers,
-    getSystemStats,
-    getRecentErrors,
-    updateAdminSetting,
-    pauseAllCampaigns,
-    resumeAllCampaigns,
-    getAllCampaigns,
-    getUserActiveCampaigns,
-    getUserLastDestinationWallet,
-    getUserRecentTokens
-};
 
 async function getUserRecentTokens(telegramId, limit = 2) {
     try {
         const result = await pool.query(
             `SELECT token_address, MAX(created_at) as last_used
-             FROM randybuybot_campaigns
+             FROM solstice_campaigns
              WHERE telegram_id = $1
              GROUP BY token_address
              ORDER BY last_used DESC
@@ -551,7 +544,7 @@ async function getUnsweptCompletedCampaigns(limit = 10) {
         await ensureDustSweptColumn();
 
         const result = await pool.query(
-            `SELECT * FROM randybuybot_campaigns 
+            `SELECT * FROM solstice_campaigns 
              WHERE status = 'completed' 
              AND (dust_swept IS NULL OR dust_swept = FALSE)
              LIMIT $1`,
@@ -568,7 +561,7 @@ async function getUnsweptCompletedCampaigns(limit = 10) {
 async function markCampaignSwept(campaignId) {
     try {
         await pool.query(
-            `UPDATE randybuybot_campaigns 
+            `UPDATE solstice_campaigns 
              SET dust_swept = TRUE, updated_at = NOW()
              WHERE id = $1`,
             [campaignId]
@@ -578,11 +571,23 @@ async function markCampaignSwept(campaignId) {
     }
 }
 
+// Helper to ensure processing column exists
+async function ensureProcessingColumn() {
+    try {
+        await pool.query(
+            `ALTER TABLE solstice_campaigns 
+             ADD COLUMN IF NOT EXISTS is_processing BOOLEAN DEFAULT FALSE`
+        );
+    } catch (error) {
+        logger.warn('Schema update warning (is_processing):', error.message);
+    }
+}
+
 // Helper to ensure column exists
 async function ensureDustSweptColumn() {
     try {
         await pool.query(
-            `ALTER TABLE randybuybot_campaigns 
+            `ALTER TABLE solstice_campaigns 
              ADD COLUMN IF NOT EXISTS dust_swept BOOLEAN DEFAULT FALSE`
         );
     } catch (error) {
@@ -620,5 +625,6 @@ module.exports = {
     getUserRecentTokens,
     // New exports
     getUnsweptCompletedCampaigns,
-    markCampaignSwept
+    markCampaignSwept,
+    setCampaignProcessing
 };

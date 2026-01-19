@@ -1,7 +1,7 @@
 const { FEE_PER_BUY_USD } = require('../config/constants');
 
 function welcomeMessage() {
-    return `🌞 *SOLSTICE BUY BOT*
+    return `🌞 *SOLSTICEBUYER*
 ━━━━━━━━━━━━━━━━━━━━━━━
 
 *The premium autonomous trading terminal for Solana.*

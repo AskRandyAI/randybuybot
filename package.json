@@ -1,5 +1,5 @@
 {
-  "name": "solstice-buy-bot",
+  "name": "solstice-buyer",
   "version": "1.0.0",
   "description": "Automated DCA trading bot for Solana",
   "main": "index.js",
