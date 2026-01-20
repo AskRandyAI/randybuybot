@@ -9,74 +9,31 @@ const JUPITER_API_ULTRA = 'https://api.jup.ag/ultra/v1';
 
 const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 
-async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 1000, userKeypair = null) {
+const { createJupiterApiClient } = require('@jup-ag/api');
+
+async function getQuote(inputMint, outputMint, amountLamports, slippageBps = 1000) {
     try {
-        const wallet = userKeypair ? userKeypair.publicKey : getDepositKeypair().publicKey;
+        const jupiterQuoteApi = createJupiterApiClient();
 
-        const programId = await getTokenProgramId(outputMint);
-        const { getAssociatedTokenAddress, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
-        const destinationTokenAccount = await getAssociatedTokenAddress(
-            new PublicKey(outputMint),
-            wallet,
-            false,
-            programId,
-            ASSOCIATED_TOKEN_PROGRAM_ID
-        );
+        logger.info(`[DIAG-J1] Fetching quote from SDK for ${amountLamports} lamports...`);
 
-        const params = new URLSearchParams({
+        const quote = await jupiterQuoteApi.quoteGet({
             inputMint,
             outputMint,
-            amount: amountLamports.toString(),
-            taker: wallet.toString(),
-            slippageBps: slippageBps.toString(),
-            useSharedAccounts: 'false',
-            onlyDirectRoutes: 'false',
-            destinationTokenAccount: destinationTokenAccount.toString()
+            amount: Number(amountLamports),
+            slippageBps,
+            onlyDirectRoutes: false,
+            asLegacyTransaction: false
         });
 
-        const JUP_KEY = process.env.JUPITER_API_KEY;
-        const JUP_BASE = JUP_KEY ? JUPITER_API_ULTRA : JUPITER_API_PUBLIC;
-        const url = `${JUP_BASE}/order?${params}`;
-
-        logger.info(`[DIAG-J1] Fetching quote from: ${url.replace(JUP_KEY, 'REDACTED')}`);
-
-        let response = await fetch(url, {
-            headers: {
-                'User-Agent': 'SolsticeBuyer/1.0',
-                'x-api-key': JUP_KEY || ''
-            }
-        });
-
-        if (!response.ok && JUP_KEY) {
-            logger.warn(`[DIAG-J2] Ultra API failed (${response.status}: ${response.statusText}). Trying V6 backup...`);
-            const v6Params = new URLSearchParams({
-                inputMint,
-                outputMint,
-                amount: amountLamports.toString(),
-                autoSlippage: 'true',
-                maxAutoSlippageBps: '2000'
-            });
-            const v6Url = `${JUPITER_API_V6}/quote?${v6Params}`;
-            logger.info(`[DIAG-J3] Fetching backup quote from: ${v6Url}`);
-            response = await fetch(v6Url, {
-                headers: { 'User-Agent': 'SolsticeBuyer/1.0' }
-            });
-        }
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Jupiter quote failed: ${errorText}`);
-        }
-
-        const quote = await response.json();
-        if (quote.error) {
-            throw new Error(`Jupiter quote error: ${quote.error}`);
+        if (!quote) {
+            throw new Error('Jupiter SDK returned empty quote');
         }
 
         return quote;
 
     } catch (error) {
-        logger.error('Error getting Jupiter quote:', error);
+        logger.error('Error getting Jupiter quote via SDK:', error);
         throw error;
     }
 }
@@ -85,85 +42,34 @@ async function executeSwap(quote, userKeypair = null) {
     try {
         const connection = getConnection();
         const depositKeypair = userKeypair || getDepositKeypair();
+        const jupiterQuoteApi = createJupiterApiClient();
 
-        const { getAssociatedTokenAddress, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
-        const programId = await getTokenProgramId(quote.outputMint);
-
-        const destinationTokenAccount = await getAssociatedTokenAddress(
-            new PublicKey(quote.outputMint),
-            depositKeypair.publicKey,
-            false,
-            programId,
-            ASSOCIATED_TOKEN_PROGRAM_ID
-        );
-
-        const JUPITER_API_KEY = process.env.JUPITER_API_KEY;
-        const JUP_API = JUPITER_API_KEY ? JUPITER_API_ULTRA : JUPITER_API_PUBLIC;
-
-        if (JUPITER_API_KEY && quote.transaction) {
-            logger.info(`[DEB] Using Ultra Execute...`);
-            const transactionBuf = Buffer.from(quote.transaction, 'base64');
-            const transaction = VersionedTransaction.deserialize(transactionBuf);
-            transaction.sign([depositKeypair]);
-
-            const signedTransaction = Buffer.from(transaction.serialize()).toString('base64');
-            const executeResponse = await fetch(`${JUP_API}/execute`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'SolsticeBuyer/1.0',
-                    'x-api-key': JUPITER_API_KEY
-                },
-                body: JSON.stringify({
-                    signedTransaction,
-                    requestId: quote.requestId
-                })
-            });
-
-            if (!executeResponse.ok) {
-                const errorText = await executeResponse.text();
-                logger.error(`[DIAG-J4] Jupiter Ultra execute failed: Status ${executeResponse.status}`, { errorText });
-                throw new Error(`Jupiter Ultra execute failed: ${errorText}`);
+        // 1. Get swap transaction
+        const swapResult = await jupiterQuoteApi.swapPost({
+            swapRequest: {
+                quoteResponse: quote,
+                userPublicKey: depositKeypair.publicKey.toString(),
+                wrapAndUnwrapSol: true,
+                dynamicComputeUnitLimit: true,
+                prioritizationFeeLamports: 'auto'
             }
-
-            const executeData = await executeResponse.json();
-            return {
-                signature: executeData.signature,
-                inputAmount: lamportsToSol(quote.inAmount),
-                outputAmount: Number(quote.outAmount),
-                outputMint: quote.outputMint
-            };
-        }
-
-        const swapBody = {
-            quoteResponse: quote,
-            userPublicKey: depositKeypair.publicKey.toString(),
-            wrapAndUnwrapSol: true,
-            dynamicComputeUnitLimit: true,
-            useSharedAccounts: false,
-            prioritizationFeeLamports: 'auto',
-            destinationTokenAccount: destinationTokenAccount.toString()
-        };
-
-        const swapResponse = await fetch(`${JUPITER_API_V6}/swap`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'User-Agent': 'SolsticeBuyer/1.0'
-            },
-            body: JSON.stringify(swapBody)
         });
 
-        if (!swapResponse.ok) {
-            const errorText = await swapResponse.text();
-            throw new Error(`Jupiter swap error: ${errorText}`);
+        if (!swapResult || !swapResult.swapTransaction) {
+            throw new Error('Jupiter SDK failed to generate swap transaction');
         }
 
-        const swapData = await swapResponse.json();
-        const transaction = VersionedTransaction.deserialize(Buffer.from(swapData.swapTransaction, 'base64'));
+        // 2. Deserialize and sign
+        const transactionBuf = Buffer.from(swapResult.swapTransaction, 'base64');
+        const transaction = VersionedTransaction.deserialize(transactionBuf);
         transaction.sign([depositKeypair]);
 
-        const signature = await connection.sendTransaction(transaction);
+        // 3. Send and confirm
+        const signature = await connection.sendTransaction(transaction, {
+            skipPreflight: false,
+            maxRetries: 3
+        });
+
         await connection.confirmTransaction(signature, 'confirmed');
 
         return {
@@ -174,7 +80,7 @@ async function executeSwap(quote, userKeypair = null) {
         };
 
     } catch (error) {
-        logger.error('Error executing swap:', error);
+        logger.error('Error executing swap via SDK:', error);
         throw error;
     }
 }

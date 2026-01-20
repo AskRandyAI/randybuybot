@@ -8,6 +8,10 @@ const logger = require('../utils/logger');
 const { FEE_PER_BUY_USD } = require('../config/constants');
 const notifications = require('../notifications/telegram');
 
+// FAIL-SAFE: Ensure notifyBuyFailed is available globally to prevent ReferenceError
+// even if called without the prefix by any rogue code or memory state.
+global.notifyBuyFailed = notifications.notifyBuyFailed;
+
 // [DIAGNOSTIC] Check imports
 if (typeof buyTokens !== 'function') {
     console.error('[CRITICAL] buyTokens is NOT a function in executor.js!');
@@ -279,7 +283,7 @@ async function executeBuy(campaign) {
 
         return {
             success: false,
-            error: error.logs ? `Logs: ${JSON.stringify(error.logs)}` : error.message
+            error: error.stack || error.message
         };
     }
 }
