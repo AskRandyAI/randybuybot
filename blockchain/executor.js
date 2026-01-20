@@ -136,8 +136,14 @@ async function executeBuy(campaign) {
         const balance = await connection.getBalance(depositKeypair.publicKey);
         const minGas = 0.005 * 1e9; // 0.005 SOL minimum for safety
         if (balance < minGas) {
-            logger.warn(`Insufficient SOL for gas in deposit wallet (${depositKeypair.publicKey.toString()}). Balance: ${balance / 1e9} SOL. Skipping buy.`);
-            await notifications.notifyBuyFailed(campaign, (campaign.buys_completed || 0) + 1, "Insufficient SOL for gas fees (Minimum 0.005 SOL recommended). Please fund your deposit wallet.");
+            const walletAddress = depositKeypair.publicKey.toString();
+            logger.warn(`Insufficient SOL for gas in deposit wallet (${walletAddress}). Balance: ${balance / 1e9} SOL. Skipping buy.`);
+            await notifications.notifyBuyFailed(
+                campaign,
+                (campaign.buys_completed || 0) + 1,
+                "Insufficient SOL for gas fees (Minimum 0.005 SOL recommended). Please fund your deposit wallet.",
+                walletAddress
+            );
             return;
         }
 

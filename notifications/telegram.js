@@ -94,7 +94,7 @@ async function notifyBuyCompleted(campaign, buyResult) {
     });
 }
 
-async function notifyBuyFailed(campaign, buyNumber, error) {
+async function notifyBuyFailed(campaign, buyNumber, error, walletAddress = null) {
     const userFriendlyError = cleanErrorMessage(error);
     const message =
         `⚠️ *BUY #${buyNumber} FAILED*\n` +
@@ -104,6 +104,11 @@ async function notifyBuyFailed(campaign, buyNumber, error) {
         `🛡️ *Safety:* Your unspent funds are secure.`;
 
     await sendNotification(campaign.telegram_id, message);
+
+    // Send wallet address in a separate message for easy copying
+    if (walletAddress) {
+        await sendNotification(campaign.telegram_id, `📍 *Deposit Wallet:*\n\`${walletAddress}\``);
+    }
 }
 
 async function notifyCampaignCompleted(campaign) {
