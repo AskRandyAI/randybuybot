@@ -132,33 +132,77 @@ async function executeBuy(campaign) {
             logger.warn(`Could not pre-create ATA: ${ataError.message}. Proceeding anyway...`);
         }
 
-        // --- GAS CHECK ---
+        // --- GAS & FUNDING CHECK ---
         const balance = await connection.getBalance(depositKeypair.publicKey);
-        const minGas = 0.005 * 1e9; // 0.005 SOL minimum for safety
-        if (balance < minGas) {
-            const walletAddress = depositKeypair.publicKey.toString();
-            logger.warn(`Insufficient SOL for gas in deposit wallet (${walletAddress}). Balance: ${balance / 1e9} SOL. Skipping buy.`);
-            await notifications.notifyBuyFailed(
-                campaign,
-                (campaign.buys_completed || 0) + 1,
-                "Insufficient SOL for gas fees (Minimum 0.005 SOL recommended). Please fund your deposit wallet.",
-                walletAddress
-            );
-            return;
+        const solPrice = await price.getSolPrice();
+        let buyAmountSOL = campaign.per_buy_usd / solPrice;
+
+        const isLastBuy = (campaign.buys_completed + 1) >= campaign.number_of_buys;
+        const gasBuffer = 0.01 * 1e9; // 0.01 SOL safety buffer for last buy/fees/transfers
+        const totalNeeded = (buyAmountSOL * 1e9) + gasBuffer;
+
+        const walletAddress = depositKeypair.publicKey.toString();
+        let skipSwap = false;
+        let swapResult = null;
+
+        if (balance < totalNeeded) {
+            if (isLastBuy) {
+                // EMERGENCY COMPLETION: We don't have enough for the full last buy.
+                // Try to spend what's left, or just skip to transfer if balance is tiny.
+                const remainingForBuy = (balance - gasBuffer) / 1e9;
+
+                if (remainingForBuy > 0.002) { // At least ~$0.25 worth of SOL
+                    logger.warn(`Last buy: Insufficient funds for full $${campaign.per_buy_usd}. Adjusting last buy to available ${remainingForBuy.toFixed(6)} SOL.`);
+                    buyAmountSOL = remainingForBuy;
+                } else {
+                    logger.info(`Last buy: Balance too low for swap (${(balance / 1e9).toFixed(6)} SOL). skipping last swap to prioritize delivery and sweep.`);
+                    skipSwap = true;
+                    // Provide a dummy successful swap result to continue flow
+                    swapResult = { signature: 'SKIPPED_LOW_FUNDS', outputAmount: 0 };
+                }
+            } else if (campaign.buys_completed > 0) {
+                // Auto-refund and cancel if we run out of gas mid-campaign
+                logger.warn(`Insufficient funds to continue campaign. Refunding remaining SOL and cancelling.`);
+                const refund = await refundSOL(campaign);
+                await db.updateCampaignProgress(campaign.id, 'cancelled');
+                let refundInfo = refund.success ? ` (Refunded: ${refund.amountSol} SOL)` : '';
+                await notifications.notifyBuyFailed(campaign, (campaign.buys_completed || 0) + 1, `Insufficient funds to continue. Remaining balance has been refunded to your wallet.${refundInfo}`, walletAddress);
+                return;
+            } else {
+                // First buy and not enough funds
+                logger.warn(`Insufficient SOL in wallet (${walletAddress}). Balance: ${balance / 1e9} SOL. Needed: ${totalNeeded / 1e9} SOL.`);
+                await notifications.notifyBuyFailed(
+                    campaign,
+                    (campaign.buys_completed || 0) + 1,
+                    "Insufficient SOL for gas fees and purchase. Please fund your deposit wallet.",
+                    walletAddress
+                );
+                return;
+            }
         }
 
-        const solPrice = await price.getSolPrice();
-        const buyAmountSOL = campaign.per_buy_usd / solPrice;
-
-        logger.info(`Buying $${campaign.per_buy_usd} worth (${buyAmountSOL.toFixed(6)} SOL) of ${campaign.token_address}`);
-
-        // 1. Swap SOL for Tokens (This is where slippage happens)
-        const swapResult = await buyTokens(
-            campaign.token_address,
-            buyAmountSOL,
-            300, // 3% slippage
-            depositKeypair
-        );
+        // 1. Swap SOL for Tokens
+        if (!skipSwap) {
+            try {
+                swapResult = await buyTokens(
+                    campaign.token_address,
+                    buyAmountSOL,
+                    300, // 3% slippage
+                    depositKeypair
+                );
+                logger.info(`✅ Swap successful! Got ${swapResult.outputAmount} tokens`);
+            } catch (swapError) {
+                // If it's the last buy and the swap failed (e.g. slippage), 
+                // we should still try to deliver what we have so far
+                if (isLastBuy) {
+                    logger.error(`Last buy swap failed: ${swapError.message}. Proceeding to delivery of existing tokens.`);
+                    skipSwap = true;
+                    swapResult = { signature: 'FAILED_BUT_FINISHED', outputAmount: 0 };
+                } else {
+                    throw swapError;
+                }
+            }
+        }
 
 
         // 2. ONLY IF SWAP SUCCEEDS - Collect Fee
