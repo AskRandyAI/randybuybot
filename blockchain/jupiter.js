@@ -50,8 +50,7 @@ async function executeSwap(quote, userKeypair = null) {
                 quoteResponse: quote,
                 userPublicKey: depositKeypair.publicKey.toString(),
                 wrapAndUnwrapSol: true,
-                dynamicComputeUnitLimit: true,
-                prioritizationFeeLamports: 'auto'
+                dynamicComputeUnitLimit: true
             }
         });
 
