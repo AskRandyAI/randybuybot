@@ -744,6 +744,42 @@ async function handleHelp(bot, msg) {
   await bot.sendMessage(chatId, messages.helpMessage());
 }
 
+async function handleFinishAnyway(bot, query, campaignId) {
+  const chatId = query.message.chat.id;
+  try {
+    const campaign = await db.getCampaignById(campaignId);
+    if (!campaign) return;
+
+    // Calculate how much SOL is left
+    const connection = wallet.getConnection();
+    const balanceLamports = await connection.getBalance(new PublicKey(campaign.deposit_address));
+    const balanceSOL = wallet.lamportsToSol(balanceLamports);
+
+    // Reserve gas for last buy and transfer (0.008 SOL)
+    const gasBuffer = 0.008;
+    const availSOL = balanceSOL - gasBuffer;
+
+    if (availSOL < 0.001) {
+      await bot.sendMessage(chatId, "❌ Balance too low to even cover gas fees. Please fund the wallet or refund.");
+      return;
+    }
+
+    // Convert availSOL to USD based on current price
+    const currentPrice = await price.getSolPrice();
+    const newPerBuyUsd = Math.max(0.1, availSOL * currentPrice);
+
+    // Update campaign: Reduce per_buy_usd to what's possible, and set active
+    await db.updateCampaignPerBuy(campaignId, newPerBuyUsd);
+    await db.updateCampaignStatus(campaignId, 'active');
+
+    await bot.sendMessage(chatId, `✅ *Adjusted!* Buy #${campaign.buys_completed + 1} will execute with $${newPerBuyUsd.toFixed(2)} worth of SOL shortly.`);
+
+  } catch (error) {
+    logger.error('Finish anyway error:', error);
+    await bot.sendMessage(chatId, '❌ Error processing request.');
+  }
+}
+
 module.exports = {
   handleStart,
   handleNewCampaign,
@@ -752,5 +788,6 @@ module.exports = {
   handleStatus,
   handleCancel,
   handleHistory,
-  handleHelp
+  handleHelp,
+  handleFinishAnyway // Added
 };

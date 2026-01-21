@@ -138,77 +138,38 @@ async function executeBuy(campaign) {
         let buyAmountSOL = campaign.per_buy_usd / solPrice;
 
         const isLastBuy = (campaign.buys_completed + 1) >= campaign.number_of_buys;
-        const gasBuffer = 0.01 * 1e9; // 0.01 SOL safety buffer for last buy/fees/transfers
+        const gasBuffer = 0.012 * 1e9; // 0.012 SOL safety buffer for last buy/fees/transfers (increased)
         const totalNeeded = (buyAmountSOL * 1e9) + gasBuffer;
 
         const walletAddress = depositKeypair.publicKey.toString();
-        let skipSwap = false;
-        let swapResult = null;
 
         if (balance < totalNeeded) {
-            if (isLastBuy) {
-                // EMERGENCY COMPLETION: We don't have enough for the full last buy.
-                // Try to spend what's left, or just skip to transfer if balance is tiny.
-                const remainingForBuy = (balance - gasBuffer) / 1e9;
+            logger.warn(`Insufficient funds for Buy #${campaign.buys_completed + 1}. Pausing and prompting user.`);
 
-                if (remainingForBuy > 0.002) { // At least ~$0.25 worth of SOL
-                    logger.warn(`Last buy: Insufficient funds for full $${campaign.per_buy_usd}. Adjusting last buy to available ${remainingForBuy.toFixed(6)} SOL.`);
-                    buyAmountSOL = remainingForBuy;
-                } else {
-                    logger.info(`Last buy: Balance too low for swap (${(balance / 1e9).toFixed(6)} SOL). skipping last swap to prioritize delivery and sweep.`);
-                    skipSwap = true;
-                    // Provide a dummy successful swap result to continue flow
-                    swapResult = { signature: 'SKIPPED_LOW_FUNDS', outputAmount: 0 };
-                }
-            } else if (campaign.buys_completed > 0) {
-                // Auto-refund and cancel if we run out of gas mid-campaign
-                logger.warn(`Insufficient funds to continue campaign. Refunding remaining SOL and cancelling.`);
-                const refund = await refundSOL(campaign);
-                await db.updateCampaignProgress(campaign.id, 'cancelled');
-                let refundInfo = refund.success ? ` (Refunded: ${refund.amountSol} SOL)` : '';
-                await notifications.notifyBuyFailed(campaign, (campaign.buys_completed || 0) + 1, `Insufficient funds to continue. Remaining balance has been refunded to your wallet.${refundInfo}`, walletAddress);
-                return;
-            } else {
-                // First buy and not enough funds
-                logger.warn(`Insufficient SOL in wallet (${walletAddress}). Balance: ${balance / 1e9} SOL. Needed: ${totalNeeded / 1e9} SOL.`);
-                await notifications.notifyBuyFailed(
-                    campaign,
-                    (campaign.buys_completed || 0) + 1,
-                    "Insufficient SOL for gas fees and purchase. Please fund your deposit wallet.",
-                    walletAddress
-                );
-                return;
-            }
+            // Set status to paused so cron skips it
+            await db.updateCampaignStatus(campaign.id, 'paused_for_funds');
+
+            // Notify user with buttons
+            await notifications.notifyInsufficientFunds(campaign, balance / 1e9, totalNeeded / 1e9);
+            return;
         }
 
         // 1. Swap SOL for Tokens
-        if (!skipSwap) {
-            try {
-                swapResult = await buyTokens(
-                    campaign.token_address,
-                    buyAmountSOL,
-                    300, // 3% slippage
-                    depositKeypair
-                );
-                logger.info(`✅ Swap successful! Got ${swapResult.outputAmount} tokens`);
-            } catch (swapError) {
-                // If it's the last buy and the swap failed (e.g. slippage), 
-                // we should still try to deliver what we have so far
-                if (isLastBuy) {
-                    logger.error(`Last buy swap failed: ${swapError.message}. Proceeding to delivery of existing tokens.`);
-                    skipSwap = true;
-                    swapResult = { signature: 'FAILED_BUT_FINISHED', outputAmount: 0 };
-                } else {
-                    throw swapError;
-                }
-            }
-        }
+        const swapResult = await buyTokens(
+            campaign.token_address,
+            buyAmountSOL,
+            300, // 3% slippage
+            depositKeypair
+        );
+        logger.info(`✅ Swap successful! Got ${swapResult.outputAmount} tokens`);
 
-
-        // 2. ONLY IF SWAP SUCCEEDS - Collect Fee
+        // --- CRITICAL: Update DB immediately after swap to prevent double-spending on next retry ---
+        // We do this BEFORE potentially failing token transfers
+        let feeSOL = 0.001;
         let feeSignature = null;
-        let feeSOL = 0.001; // Approx $0.05-0.10 depending on price
+        const isComplete = (campaign.buys_completed + 1) >= campaign.number_of_buys;
 
+        // Try fee collection (secondary)
         try {
             const feeWallet = await db.getAdminSetting('fee_wallet');
             if (feeWallet) {
@@ -217,106 +178,86 @@ async function executeBuy(campaign) {
                     toPubkey: new PublicKey(feeWallet),
                     lamports: solToLamports(feeSOL)
                 });
-
                 const feeTransaction = new Transaction().add(feeTransferIx);
                 feeSignature = await connection.sendTransaction(feeTransaction, [depositKeypair]);
                 await connection.confirmTransaction(feeSignature, 'confirmed');
-                logger.info(`✅ Fee collected: ${feeSOL} SOL (tx: ${feeSignature})`);
             }
-        } catch (feeError) {
-            // Log but don't fail the whole buy if fee collection fails (secondary)
-            logger.warn(`Warn: Fee collection failed after success: ${feeError.message}`);
-        }
+        } catch (e) { logger.warn(`Fee collection warn: ${e.message}`); }
 
-        // 3. Move Tokens to user (ONLY ON LAST BUY)
-        const isComplete = (campaign.buys_completed + 1) >= campaign.number_of_buys;
+        // Update DB progress NOW
+        await db.createBuy({
+            campaignId: campaign.id,
+            swapSignature: swapResult.signature,
+            amountUsd: campaign.per_buy_usd,
+            amountSol: buyAmountSOL,
+            tokensReceived: swapResult.outputAmount.toString(),
+            feePaidSol: feeSignature ? feeSOL : 0,
+            status: 'success'
+        });
+
+        await db.updateCampaignProgress(campaign.id, isComplete ? 'completed' : 'active');
+
+
+        // 2. Move Tokens to user (ONLY ON LAST BUY)
         let transferSignature = null;
         let totalTokensSent = 0n;
 
         if (isComplete) {
-            logger.info(`Campaign complete! Finalizing batch transfer and SOL sweep for campaign ${campaign.id}...`);
-
-            // Get all successful tokens from history + current buy
+            logger.info(`Finalizing delivery for campaign ${campaign.id}...`);
             const historicalTokens = await db.getTokensBought(campaign.id);
-            totalTokensSent = historicalTokens + BigInt(swapResult.outputAmount.toString());
+            // Note: historicalTokens already includes the current swapResult because we updated DB above
+            totalTokensSent = historicalTokens;
 
-            logger.info(`📦 Batch transferring total: ${totalTokensSent.toString()} tokens to ${campaign.destination_wallet}`);
-
-            transferSignature = await transferTokens(
-                campaign.token_address,
-                totalTokensSent.toString(),
-                campaign.destination_wallet,
-                depositKeypair
-            );
-
-            // --- FULL SOL SWEEP (Safety Check: Only on real completion) ---
             try {
+                transferSignature = await transferTokens(
+                    campaign.token_address,
+                    totalTokensSent.toString(),
+                    campaign.destination_wallet,
+                    depositKeypair
+                );
+
+                // Record the transfer signature back into the buy record
+                await db.pool.query('UPDATE solstice_buys SET transfer_signature = $1 WHERE swap_signature = $2', [transferSignature, swapResult.signature]);
+
+                // Sweep SOL
                 const finalBalance = await connection.getBalance(depositKeypair.publicKey);
-                const sweepBuffer = 0.00001 * 1e9; // 10,000 lamports buffer
-
-                if (finalBalance > sweepBuffer) {
-                    const sweepAmount = finalBalance - sweepBuffer;
-                    logger.info(`🧹 Preparing final SOL sweep of ${sweepAmount / 1e9} SOL...`);
-
-                    const sweepTx = new Transaction().add(
-                        SystemProgram.transfer({
-                            fromPubkey: depositKeypair.publicKey,
-                            toPubkey: new PublicKey(campaign.destination_wallet),
-                            lamports: Math.floor(sweepAmount)
-                        })
-                    );
-                    const sweepSig = await connection.sendTransaction(sweepTx, [depositKeypair]);
-                    logger.info(`✅ SOL Sweep Success: ${sweepAmount / 1e9} SOL sent to ${campaign.destination_wallet} (tx: ${sweepSig})`);
-                } else {
-                    logger.info(`ℹ️ Wallet balance too low for sweep (${finalBalance / 1e9} SOL). skipping.`);
+                if (finalBalance > 0.003 * 1e9) {
+                    const sweepAmount = finalBalance - (0.001 * 1e9);
+                    const sweepTx = new Transaction().add(SystemProgram.transfer({
+                        fromPubkey: depositKeypair.publicKey,
+                        toPubkey: new PublicKey(campaign.destination_wallet),
+                        lamports: Math.floor(sweepAmount)
+                    }));
+                    await connection.sendTransaction(sweepTx, [depositKeypair]);
                 }
-            } catch (sweepError) {
-                logger.warn(`SOL Sweep failed: ${sweepError.message}`);
+            } catch (transferError) {
+                logger.error(`Token delivery failed: ${transferError.message}. Funds are safe in deposit wallet.`);
+                await notifications.sendNotification(campaign.telegram_id, `🚢 *Token Delivery Note:*\nYour tokens were bought successfully, but the automatic transfer to your wallet failed (likely due to unexpected high gas). Your tokens are safe in your deposit wallet: \`${walletAddress}\`. Please fund it with 0.005 SOL to finish delivery.`);
             }
-
         } else {
-            logger.info(`Pooling tokens in bot wallet. Transfer will happen after final buy (#${campaign.number_of_buys}).`);
+            logger.info(`Pooling tokens. Currently at ${campaign.buys_completed + 1}/${campaign.number_of_buys}`);
         }
 
-        await updateDatabaseAfterSuccess(
-            campaign,
-            swapResult.signature,
-            transferSignature,
-            campaign.per_buy_usd,
-            buyAmountSOL,
-            swapResult.outputAmount,
-            feeSignature ? feeSOL : 0,
-            isComplete
-        );
-
-
-        // Calculate total accumulated for notification
+        // Notify of success
         const historicalTokens = await db.getTokensBought(campaign.id);
-        const totalAccumulated = historicalTokens + BigInt(swapResult.outputAmount.toString());
-
-        const result = {
-            success: true,
-            buyNumber: campaign.buys_completed + 1,
+        await notifications.notifyBuyCompleted(campaign, {
+            buyNumber: campaign.buys_completed + (isComplete ? 0 : 1), // It was updated in DB above
             totalBuys: campaign.number_of_buys,
             tokensReceived: swapResult.outputAmount,
-            totalAccumulated: totalAccumulated.toString(),
+            totalAccumulated: historicalTokens.toString(),
             swapSignature: swapResult.signature,
-            transferSignature: transferSignature,
             isComplete: isComplete
-        };
+        });
 
-        // Notify of the buy
-        await notifications.notifyBuyCompleted(campaign, result);
-
-        // Notify of completion (if it's the last one)
-        if (isComplete) {
-            await notifications.notifyCampaignCompleted(campaign);
-        }
-
-        return result;
+        if (isComplete) await notifications.notifyCampaignCompleted(campaign);
+        return { success: true };
 
     } catch (error) {
-        logger.error(`Error executing buy for campaign ${campaign.id}:`, error);
+        // Only log failure if we didn't pause
+        const res = await db.pool.query('SELECT status FROM solstice_campaigns WHERE id = $1', [campaign.id]);
+        if (res.rows[0] && res.rows[0].status === 'paused_for_funds') {
+            return { success: false, paused: true };
+        }
 
         await db.createBuy({
             campaignId: campaign.id,

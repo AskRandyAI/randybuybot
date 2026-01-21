@@ -124,10 +124,31 @@ async function notifyCampaignCompleted(campaign) {
     await sendNotification(campaign.telegram_id, message);
 }
 
+async function notifyInsufficientFunds(campaign, balanceSOL, neededSOL) {
+    const message =
+        `⚠️ *INSUFFICIENT FUNDS*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `📥 *Current Balance:* \`${balanceSOL.toFixed(6)} SOL\`\n` +
+        `💸 *Buy #${campaign.buys_completed + 1} Needs:* \`${neededSOL.toFixed(6)} SOL\`\n\n` +
+        `The campaign has been *paused*. How would you like to proceed?`;
+
+    await sendNotification(campaign.telegram_id, message, {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: `💰 Buy with remaining SOL`, callback_data: `finish_anyway_${campaign.id}` }],
+                [{ text: `♻️ Refund & Cancel`, callback_data: `refund_cancel_${campaign.id}` }],
+                [{ text: `➕ Fund Wallet`, callback_data: `status` }]
+            ]
+        }
+    });
+}
+
 module.exports = {
     initializeNotifications,
     notifyDepositDetected,
     notifyBuyCompleted,
     notifyBuyFailed,
-    notifyCampaignCompleted
+    notifyCampaignCompleted,
+    notifyInsufficientFunds, // Added
+    sendNotification
 };

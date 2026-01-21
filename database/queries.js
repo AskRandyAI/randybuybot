@@ -596,6 +596,20 @@ async function ensureDustSweptColumn() {
     }
 }
 
+async function updateCampaignPerBuy(campaignId, perBuyUsd) {
+    try {
+        await pool.query(
+            `UPDATE solstice_campaigns 
+             SET per_buy_usd = $1, updated_at = NOW() 
+             WHERE id = $2`,
+            [perBuyUsd, campaignId]
+        );
+    } catch (error) {
+        logger.error('Error updating campaign per_buy_usd:', error);
+        throw error;
+    }
+}
+
 module.exports = {
     getOrCreateUser,
     createCampaign,
@@ -626,5 +640,7 @@ module.exports = {
     // New exports
     getUnsweptCompletedCampaigns,
     markCampaignSwept,
-    setCampaignProcessing
+    setCampaignProcessing,
+    updateCampaignPerBuy, // Added
+    pool // Exported for direct access if needed
 };
